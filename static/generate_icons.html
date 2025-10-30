@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+</head>
+<body>
+    <canvas id="canvas192" width="192" height="192"></canvas>
+    <canvas id="canvas512" width="512" height="512"></canvas>
+    
+    <script>
+        function drawIcon(canvas) {
+            const ctx = canvas.getContext('2d');
+            const size = canvas.width;
+            
+            // 배경 그라데이션
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // 원형 배경
+            const margin = size * 0.1;
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2 - margin, 0, Math.PI * 2);
+            ctx.fillStyle = '#764ba2';
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = size * 0.03;
+            ctx.stroke();
+            
+            // 화살표 그리기
+            const center = size / 2;
+            const arrowSize = size / 4;
+            ctx.fillStyle = 'white';
+            
+            // 위 화살표
+            ctx.beginPath();
+            ctx.moveTo(center, center - arrowSize);
+            ctx.lineTo(center - arrowSize/2, center - arrowSize/2);
+            ctx.lineTo(center + arrowSize/2, center - arrowSize/2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // 아래 화살표
+            ctx.beginPath();
+            ctx.moveTo(center, center + arrowSize);
+            ctx.lineTo(center - arrowSize/2, center + arrowSize/2);
+            ctx.lineTo(center + arrowSize/2, center + arrowSize/2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // 왼쪽 화살표
+            ctx.beginPath();
+            ctx.moveTo(center - arrowSize, center);
+            ctx.lineTo(center - arrowSize/2, center - arrowSize/2);
+            ctx.lineTo(center - arrowSize/2, center + arrowSize/2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // 오른쪽 화살표
+            ctx.beginPath();
+            ctx.moveTo(center + arrowSize, center);
+            ctx.lineTo(center + arrowSize/2, center - arrowSize/2);
+            ctx.lineTo(center + arrowSize/2, center + arrowSize/2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // 중앙 원
+            ctx.beginPath();
+            ctx.arc(center, center, size / 8, 0, Math.PI * 2);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+        }
+        
+        // 아이콘 그리기
+        drawIcon(document.getElementById('canvas192'));
+        drawIcon(document.getElementById('canvas512'));
+        
+        // 다운로드 링크 생성
+        setTimeout(() => {
+            const canvas192 = document.getElementById('canvas192');
+            const canvas512 = document.getElementById('canvas512');
+            
+            canvas192.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'icon-192.png';
+                document.body.appendChild(a);
+                a.click();
+            });
+            
+            setTimeout(() => {
+                canvas512.toBlob(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'icon-512.png';
+                    document.body.appendChild(a);
+                    a.click();
+                });
+            }, 500);
+        }, 100);
+    </script>
+</body>
+</html>

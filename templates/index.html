@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="방향 컨트롤러">
+    <title>방향 제어 컨트롤러</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    
+    <!-- 아이콘 설정 -->
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='images/icon-192.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/icon-192.png') }}">
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>방향 컨트롤러</h1>
+        <div class="controller">
+            <!-- 위쪽 버튼 -->
+            <div class="button-row">
+                <button class="direction-btn" data-direction="up" id="btn-up">
+                    <span class="arrow">⬆️</span>
+                    <span class="text">위</span>
+                </button>
+            </div>
+            
+            <!-- 중간 줄: 왼쪽, 가운데, 오른쪽 -->
+            <div class="button-row">
+                <button class="direction-btn" data-direction="left" id="btn-left">
+                    <span class="arrow">⬅️</span>
+                    <span class="text">왼쪽</span>
+                </button>
+                
+                <div class="center-circle"></div>
+                
+                <button class="direction-btn" data-direction="right" id="btn-right">
+                    <span class="arrow">➡️</span>
+                    <span class="text">오른쪽</span>
+                </button>
+            </div>
+            
+            <!-- 아래쪽 버튼 -->
+            <div class="button-row">
+                <button class="direction-btn" data-direction="down" id="btn-down">
+                    <span class="arrow">⬇️</span>
+                    <span class="text">아래</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 상태 표시 영역 -->
+        <div class="status">
+            <p id="status-text">버튼을 클릭하세요</p>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    
+    <!-- Service Worker 등록 -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}")
+                .then(registration => console.log('✅ Service Worker 등록 성공:', registration))
+                .catch(error => console.log('❌ Service Worker 등록 실패:', error));
+        }
+    </script>
+</body>
+</html>
