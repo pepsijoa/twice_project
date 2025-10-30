@@ -29,10 +29,10 @@ body {
 }
 
 h1 {
-    color: white;
+    color: black;
     margin-bottom: 40px;
     font-size: 2.5rem;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.3);
 }
 
 .controller {
@@ -126,6 +126,45 @@ h1 {
     font-weight: bold;
 }
 
+/* 홈 버튼 */
+.home-button-container {
+    margin-top: 30px;
+    text-align: center;
+}
+
+.home-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px 30px;
+    background: white;
+    border-radius: 50px;
+    text-decoration: none;
+    color: #667eea;
+    font-weight: bold;
+    font-size: 1.1rem;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+
+.home-button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    background: linear-gradient(145deg, #ffffff, #f5f5f5);
+}
+
+.home-button:active {
+    transform: translateY(-1px) scale(0.98);
+}
+
+.home-icon {
+    font-size: 1.5rem;
+}
+
+.home-text {
+    font-size: 1rem;
+}
+
 /* 반응형 디자인 */
 @media (max-width: 768px) {
     body {
@@ -164,6 +203,15 @@ h1 {
     #status-text {
         font-size: 1.1rem;
     }
+    
+    .home-button {
+        padding: 12px 25px;
+        font-size: 1rem;
+    }
+    
+    .home-icon {
+        font-size: 1.3rem;
+    }
 }
 
 @media (max-width: 480px) {
@@ -188,6 +236,15 @@ h1 {
     
     .button-row {
         gap: 10px;
+    }
+    
+    .home-button {
+        padding: 10px 20px;
+        font-size: 0.9rem;
+    }
+    
+    .home-icon {
+        font-size: 1.2rem;
     }
 }
 

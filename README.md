@@ -1,6 +1,6 @@
-# 🎮 방향 제어 컨트롤러 (Direction Controller)
+# 🎮 IoT 컨트롤러 (IoT Controller)
 
-Flask 기반의 상하좌우 방향 제어 웹 애플리케이션입니다.
+Flask 기반의 IoT 기기 제어 웹 애플리케이션입니다.
 PWA(Progressive Web App)로 제작되어 모바일 기기에서도 앱처럼 사용할 수 있습니다.
 
 ## 📚 문서 가이드
@@ -11,7 +11,8 @@ PWA(Progressive Web App)로 제작되어 모바일 기기에서도 앱처럼 사
 
 ## ✨ 주요 기능
 
-- 🔼 상하좌우 방향 버튼 제어
+- 🏠 메인 대시보드 (다중 기능 메뉴)
+- �️ 방향 제어 컨트롤러 (상하좌우)
 - 🔒 HTTP/HTTPS 지원 (자동 전환)
 - 📱 모바일 최적화 (PWA 지원)
 - ⌨️ 키보드 방향키 지원
@@ -123,7 +124,8 @@ twiceProjeect/
 │   ├── REMOVE_WARNING.md       # 경고 제거 가이드
 │   └── MOBILE_CERT_GUIDE.md    # 모바일 인증서 설치 가이드
 ├── templates/
-│   └── index.html              # 메인 HTML
+│   ├── main.html               # 메인 대시보드
+│   └── controller.html         # 방향 컨트롤러 페이지
 ├── static/
 │   ├── css/
 │   │   └── style.css           # 스타일시트
@@ -139,11 +141,18 @@ twiceProjeect/
 
 ## 🎯 사용 방법
 
+### 메인 페이지 (`/`)
+- 🏠 IoT 컨트롤러 대시보드
+- 여러 기능 중 선택 가능
+- 방향 컨트롤러, 모니터링, 설정 등 (일부 준비 중)
+
+### 방향 컨트롤러 (`/controller`)
 1. **버튼 클릭**: 상하좌우 버튼을 클릭하면 서버에서 방향 정보를 받아 처리
 2. **키보드 제어**: PC에서 방향키(←↑→↓)로도 제어 가능
 3. **터미널 출력**: 버튼 클릭 시 서버 터미널에 이모지와 함께 메시지 출력
+4. **홈 버튼**: 언제든지 메인 페이지로 돌아갈 수 있음
 
-## � HTTPS 설정 가이드
+## 🔒 HTTPS 설정 가이드
 
 ### 왜 HTTPS가 필요한가요?
 - 📱 **PWA 기능**: Service Worker, 오프라인 모드 등은 HTTPS에서만 작동
