@@ -1,7 +1,7 @@
 {
-  "name": "방향 제어 컨트롤러",
-  "short_name": "방향 컨트롤",
-  "description": "상하좌우 방향을 제어하는 웹 애플리케이션",
+  "name": "IoT 컨트롤러",
+  "short_name": "IoT Controller",
+  "description": "IoT 기기를 제어하는 웹 애플리케이션",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#667eea",

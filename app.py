@@ -18,7 +18,12 @@ def add_security_headers(response):
 # 메인 페이지 라우트
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('main.html')
+
+# 컨트롤러 페이지 라우트
+@app.route('/controller')
+def controller():
+    return render_template('controller.html')
 
 # Service Worker 라우트
 @app.route('/sw.js')

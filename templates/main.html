@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="IoT 컨트롤러">
+    <title>IoT 컨트롤러 - 메인</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    
+    <!-- 아이콘 설정 -->
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='images/icon-192.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/icon-192.png') }}">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            text-align: center;
+            padding: 40px 20px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .logo {
+            font-size: 5rem;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+
+        h1 {
+            color: white;
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.2rem;
+            margin-bottom: 50px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .menu-card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .menu-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .menu-card:active {
+            transform: translateY(-5px) scale(0.98);
+        }
+
+        .menu-icon {
+            font-size: 4rem;
+            margin-bottom: 10px;
+        }
+
+        .menu-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .menu-description {
+            font-size: 0.95rem;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .info-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 40px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .info-title {
+            color: #667eea;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .info-list {
+            list-style: none;
+            text-align: left;
+            color: #555;
+        }
+
+        .info-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .info-list li:last-child {
+            border-bottom: none;
+        }
+
+        .info-list li::before {
+            content: "✓ ";
+            color: #667eea;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        /* 반응형 디자인 */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            .subtitle {
+                font-size: 1rem;
+            }
+
+            .logo {
+                font-size: 4rem;
+            }
+
+            .menu-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .menu-card {
+                padding: 30px 20px;
+            }
+
+            .menu-icon {
+                font-size: 3rem;
+            }
+
+            .menu-title {
+                font-size: 1.3rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .main-container {
+                padding: 20px 15px;
+            }
+
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .logo {
+                font-size: 3.5rem;
+            }
+        }
+
+        /* 로딩 애니메이션 */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container fade-in">
+        <div class="logo">🎮</div>
+        <h1>IoT 컨트롤러</h1>
+        <p class="subtitle">스마트 기기를 제어하세요</p>
+
+        <div class="menu-grid">
+            <a href="/controller" class="menu-card">
+                <div class="menu-icon">🕹️</div>
+                <div class="menu-title">방향 컨트롤러</div>
+                <div class="menu-description">
+                    상하좌우 버튼으로<br>
+                    기기를 제어합니다
+                </div>
+            </a>
+        </div>
+
+        <div class="info-section">
+            <div class="info-title">📱 주요 기능</div>
+            <ul class="info-list">
+                <li>PWA 지원으로 앱처럼 사용 가능</li>
+                <li>모바일과 PC 모두 지원</li>
+                <li>오프라인 모드 지원</li>
+                <li>HTTPS 보안 연결</li>
+                <li>실시간 제어 및 피드백</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Service Worker 등록 -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}")
+                .then(registration => console.log('✅ Service Worker 등록 성공:', registration))
+                .catch(error => console.log('❌ Service Worker 등록 실패:', error));
+        }
+
+        // 페이드인 애니메이션
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.querySelector('.main-container');
+            container.classList.add('fade-in');
+        });
+    </script>
+</body>
+</html>
