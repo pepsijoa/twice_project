@@ -6,8 +6,8 @@
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="IoT 컨트롤러">
-    <title>IoT 컨트롤러 - 메인</title>
+    <meta name="apple-mobile-web-app-title" content="재고 관리 로봇">
+    <title>재고 관리 로봇</title>
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
@@ -121,43 +121,6 @@
             line-height: 1.5;
         }
 
-        .info-section {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            padding: 20px;
-            margin-top: 40px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .info-title {
-            color: #667eea;
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-
-        .info-list {
-            list-style: none;
-            text-align: left;
-            color: #555;
-        }
-
-        .info-list li {
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
-        }
-
-        .info-list li:last-child {
-            border-bottom: none;
-        }
-
-        .info-list li::before {
-            content: "✓ ";
-            color: #667eea;
-            font-weight: bold;
-            margin-right: 8px;
-        }
-
         /* 반응형 디자인 */
         @media (max-width: 768px) {
             h1 {
@@ -223,29 +186,27 @@
 <body>
     <div class="main-container fade-in">
         <div class="logo">🎮</div>
-        <h1>IoT 컨트롤러</h1>
-        <p class="subtitle">스마트 기기를 제어하세요</p>
+        <h1>재고 안내 로봇</h1>
+        <p class="subtitle">원하시는 메뉴를 선택</p>
 
         <div class="menu-grid">
             <a href="/controller" class="menu-card">
                 <div class="menu-icon">🕹️</div>
-                <div class="menu-title">방향 컨트롤러</div>
+                <div class="menu-title">로봇 조작</div>
                 <div class="menu-description">
                     상하좌우 버튼으로<br>
-                    기기를 제어합니다
+                    로봇 제어
                 </div>
             </a>
-        </div>
 
-        <div class="info-section">
-            <div class="info-title">📱 주요 기능</div>
-            <ul class="info-list">
-                <li>PWA 지원으로 앱처럼 사용 가능</li>
-                <li>모바일과 PC 모두 지원</li>
-                <li>오프라인 모드 지원</li>
-                <li>HTTPS 보안 연결</li>
-                <li>실시간 제어 및 피드백</li>
-            </ul>
+            <a href="/inventory" class="menu-card">
+                <div class="menu-icon">📦</div>
+                <div class="menu-title">재고 관리</div>
+                <div class="menu-description">
+                    실시간 <br>
+                    재고 확인
+                </div>
+            </a>
         </div>
     </div>
 

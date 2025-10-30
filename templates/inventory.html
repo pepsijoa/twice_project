@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>재고 관리 - IoT 로봇 시스템</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 1.8rem;
+        }
+
+        .home-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .home-button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 15px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .search-input:focus {
+            border-color: #764ba2;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+        }
+
+        .add-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .add-button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .inventory-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+        }
+
+        .inventory-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .item-name {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .item-info {
+            margin-bottom: 10px;
+            color: #555;
+        }
+
+        .item-label {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .quantity {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .quantity.low {
+            background: #e74c3c;
+        }
+
+        .quantity.medium {
+            background: #f39c12;
+        }
+
+        .quantity.high {
+            background: #27ae60;
+        }
+
+        .item-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+
+        .edit-btn {
+            background: #3498db;
+            color: white;
+        }
+
+        .edit-btn:hover {
+            background: #2980b9;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .delete-btn:hover {
+            background: #c0392b;
+        }
+
+        .empty-state {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 60px 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .empty-state h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .empty-state p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        /* 반응형 디자인 */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .inventory-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .search-bar {
+                flex-direction: column;
+            }
+
+            .search-input {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📦 재고 관리</h1>
+            <a href="/" class="home-button">🏠 홈으로</a>
+        </div>
+
+        <div class="controls">
+            <div class="search-bar">
+                <input type="text" class="search-input" id="searchInput" placeholder="🔍 재고 검색...">
+                <button class="add-button" onclick="addItem()">➕ 재고 추가</button>
+            </div>
+        </div>
+
+        <!-- 재고 카드 그리드 -->
+        <div id="inventoryGrid" class="inventory-grid">
+            <!-- 샘플 데이터 (나중에 DB에서 가져올 예정) -->
+            <div class="inventory-card">
+                <div class="item-name">센서 모듈</div>
+                <div class="item-info">
+                    <span class="item-label">수량:</span>
+                    <span class="quantity high">15개</span>
+                </div>
+                <div class="item-info">
+                    <span class="item-label">위치:</span> A-01
+                </div>
+                <div class="item-info">
+                    <span class="item-label">최종 업데이트:</span> 2024-01-15
+                </div>
+                <div class="item-actions">
+                    <button class="action-btn edit-btn" onclick="editItem(1)">✏️ 수정</button>
+                    <button class="action-btn delete-btn" onclick="deleteItem(1)">🗑️ 삭제</button>
+                </div>
+            </div>
+
+            <div class="inventory-card">
+                <div class="item-name">모터 드라이버</div>
+                <div class="item-info">
+                    <span class="item-label">수량:</span>
+                    <span class="quantity medium">8개</span>
+                </div>
+                <div class="item-info">
+                    <span class="item-label">위치:</span> A-02
+                </div>
+                <div class="item-info">
+                    <span class="item-label">최종 업데이트:</span> 2024-01-14
+                </div>
+                <div class="item-actions">
+                    <button class="action-btn edit-btn" onclick="editItem(2)">✏️ 수정</button>
+                    <button class="action-btn delete-btn" onclick="deleteItem(2)">🗑️ 삭제</button>
+                </div>
+            </div>
+
+            <div class="inventory-card">
+                <div class="item-name">배터리 팩</div>
+                <div class="item-info">
+                    <span class="item-label">수량:</span>
+                    <span class="quantity low">3개</span>
+                </div>
+                <div class="item-info">
+                    <span class="item-label">위치:</span> B-01
+                </div>
+                <div class="item-info">
+                    <span class="item-label">최종 업데이트:</span> 2024-01-13
+                </div>
+                <div class="item-actions">
+                    <button class="action-btn edit-btn" onclick="editItem(3)">✏️ 수정</button>
+                    <button class="action-btn delete-btn" onclick="deleteItem(3)">🗑️ 삭제</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 재고가 없을 때 표시 (현재는 숨김) -->
+        <div class="empty-state" style="display: none;" id="emptyState">
+            <h2>재고가 없습니다</h2>
+            <p>➕ 재고 추가 버튼을 눌러 새로운 재고를 추가하세요.</p>
+        </div>
+    </div>
+
+    <script>
+        // Service Worker 등록
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/sw.js')
+                .then(reg => console.log('Service Worker registered'))
+                .catch(err => console.log('Service Worker registration failed'));
+        }
+
+        // 검색 기능
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const cards = document.querySelectorAll('.inventory-card');
+            
+            cards.forEach(card => {
+                const itemName = card.querySelector('.item-name').textContent.toLowerCase();
+                if (itemName.includes(searchTerm)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+
+        // 재고 추가 함수 (나중에 DB 연동)
+        function addItem() {
+            alert('재고 추가 기능은 DB 연동 후 구현될 예정입니다.');
+            // TODO: 모달 창 띄우기 또는 새 페이지로 이동
+        }
+
+        // 재고 수정 함수 (나중에 DB 연동)
+        function editItem(id) {
+            alert(`재고 ID ${id} 수정 기능은 DB 연동 후 구현될 예정입니다.`);
+            // TODO: 수정 폼 표시
+        }
+
+        // 재고 삭제 함수 (나중에 DB 연동)
+        function deleteItem(id) {
+            if (confirm('정말 삭제하시겠습니까?')) {
+                alert(`재고 ID ${id} 삭제 기능은 DB 연동 후 구현될 예정입니다.`);
+                // TODO: DB에서 삭제 후 페이지 갱신
+            }
+        }
+    </script>
+</body>
+</html>

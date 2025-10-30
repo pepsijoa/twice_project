@@ -25,6 +25,12 @@ def index():
 def controller():
     return render_template('controller.html')
 
+# 재고 관리 페이지 라우트
+@app.route('/inventory')
+def inventory():
+    # TODO: 나중에 DB에서 재고 데이터를 가져와서 전달
+    return render_template('inventory.html')
+
 # Service Worker 라우트
 @app.route('/sw.js')
 def service_worker():
