@@ -12,9 +12,10 @@ module;
 module mainController;
 
 import webController;
+import mapper;
 
 //생성자
-MainController::MainController() : webCtrl(nullptr), running(false)
+MainController::MainController() : webCtrl(nullptr), mapper(nullptr), running(false)
 {   
 }
 
@@ -120,4 +121,24 @@ size_t MainController::getQueueSize()
 {
     std::lock_guard<std::mutex> lock(queueMutex);
     return messageQueue.size();
+}
+
+void MainController::interpretMessage()
+{
+    Message msg;
+    if(popMessage(msg, 5000)){
+        std::cout << " 우선순위 :" << msg.priority << std::endl;
+        std::cout << " 데이터 : " << msg.data << std::endl;
+        std::cout << " 남은 메시지 : " << getQueueSize() << std::endl;
+
+        if(msg.data == "up" || msg.data == "down" || msg.data == "left" || msg.data == "right" || msg.data == "doneMapping"){
+            mapper->getMappingMessages(msg.data.c_str());
+        }
+        else{
+            std::cout << "Unknown command: " << msg.data << std::endl;
+        }
+    }
+    else{
+        std::cout << "." << std::flush;
+    }
 }

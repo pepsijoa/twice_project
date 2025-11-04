@@ -15,6 +15,7 @@ target_sources(${PROJECT_NAME}
     FILE_SET CXX_MODULES FILES
       src/webController.cppm
       src/mainController.cppm
+      src/mapper.cppm
 )
 
 # 일반 소스 파일 추가 (*.cpp 파일)
@@ -22,5 +23,6 @@ target_sources(${PROJECT_NAME}
   PRIVATE
     src/mainController.cpp
     src/webController.cpp
+    src/mapper.cpp
     src/main.cpp
 )
