@@ -1,9 +1,11 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory, send_file
 import os
 import ssl
+import socket
+import time
 
 app = Flask(__name__)
-
+SOCKET_PATH = "/tmp/flaskToCPP.sock"
 # 보안 헤더 추가
 @app.after_request
 def add_security_headers(response):
@@ -42,18 +44,17 @@ def control():
     data = request.get_json()
     direction = data.get('direction')
     
-    # 방향에 따른 처리
-    if direction == 'up':
-        print("⬆️ 위쪽 버튼이 클릭되었습니다!")
-    elif direction == 'down':
-        print("⬇️ 아래쪽 버튼이 클릭되었습니다!")
-    elif direction == 'left':
-        print("⬅️ 왼쪽 버튼이 클릭되었습니다!")
-    elif direction == 'right':
-        print("➡️ 오른쪽 버튼이 클릭되었습니다!")
-    else:
-        print("❌ 알 수 없는 방향입니다.")
-        return jsonify({'status': 'error', 'message': '잘못된 방향입니다.'}), 400
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    client.connect(SOCKET_PATH)
+    client.send(direction.encode('utf-8'))
+
+
+    response = client.recv(1024).decode('utf-8')
+
+    print(f"C++ 서버 응답: {response}")
+    
+    client.close()
+    time.sleep(0.1) 
     
     return jsonify({'status': 'success', 'direction': direction})
 
