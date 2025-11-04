@@ -17,7 +17,10 @@ int main()
     // 웹 서버를 별도 스레드에서 시작
     mainCtrl.startWebServerThread();
 
-    
+    while(true) {
+        mainCtrl.interpretMessage();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
     
     mainCtrl.stopWebServer();
     

@@ -11,6 +11,7 @@ module;
 export module mainController;
 
 import webController;
+import mapper;
 
 // 메시지 구조체
 export struct Message {
@@ -26,6 +27,8 @@ export struct Message {
 export class MainController {
 private:
     std::unique_ptr<WebController> webCtrl;
+    std::unique_ptr<Mapper> mapper;
+
     std::thread serverThread;
     bool running;
     
@@ -36,6 +39,12 @@ private:
     
     // 서버 스레드 함수
     void serverThreadFunction();
+
+    // 메시지 큐 크기
+    size_t getQueueSize();
+
+    // 메시지 큐에서 가져오기 (블로킹)
+    bool popMessage(Message& msg, int timeout_ms = -1);
     
 public:
     MainController();
@@ -51,13 +60,8 @@ public:
     
     // 메시지 큐에 추가
     void pushMessage(int priority, const std::string& data);
-    
-    // 메시지 큐에서 가져온 데이터 해석
-    void interpretMessage(const std::string& msgData);
 
-    // 메시지 큐에서 가져오기 (블로킹)
-    bool popMessage(Message& msg, int timeout_ms = -1);
-    
-    // 메시지 큐 크기
-    size_t getQueueSize();
+    // 메시지 큐에서 가져온 데이터 해석
+    void interpretMessage();
+        
 };
