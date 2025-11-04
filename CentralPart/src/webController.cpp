@@ -11,7 +11,7 @@ module webController;
 // 생성자 구현
 WebController::WebController(const char* socket_path) 
 {
-    unlink(socket_path); // 기존 소켓 파일 삭제
+    unlink(socket_path); 
 
     server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (server_fd < 0) {
@@ -73,7 +73,7 @@ bool WebController::accept_connection()
         client_fd = -1;
     }
 
-    std::cout << "⏳ 클라이언트 대기 중..." << std::endl;
+    std::cout << "클라이언트 대기 중..." << std::endl;
     
     client_fd = accept(server_fd, nullptr, nullptr);
     if (client_fd == -1) {
@@ -131,3 +131,4 @@ void WebController::send_response(const char* message)
         std::cout << "응답 전송: " << message << std::endl;
     }
 }
+

@@ -52,6 +52,9 @@ public:
     // 메시지 큐에 추가
     void pushMessage(int priority, const std::string& data);
     
+    // 메시지 큐에서 가져온 데이터 해석
+    void interpretMessage(const std::string& msgData);
+
     // 메시지 큐에서 가져오기 (블로킹)
     bool popMessage(Message& msg, int timeout_ms = -1);
     
