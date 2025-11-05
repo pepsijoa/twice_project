@@ -7,7 +7,7 @@ import mainController;
 int main()
 {
     MainController mainCtrl;
-    
+    std::cout << "hello" << std::endl;
     // 웹 컨트롤러 초기화
     if(!mainCtrl.initWebController("/tmp/flaskToCPP.sock")){
         std::cerr << "웹 컨트롤러 초기화 실패" << std::endl;
