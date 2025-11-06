@@ -12,7 +12,7 @@ Mapper::Mapper() {
 Mapper::~Mapper() {
 }
 
-void Mapper::getMappingMessages(const char* msg)
+std::string Mapper::getMappingMessages(const char* msg)
 {
     if(!doneMapping)
     {
@@ -24,9 +24,15 @@ void Mapper::getMappingMessages(const char* msg)
             locations.push_back(currentLocation);
         } else if(strcmp(msg, "right") == 0){
             currentLocation.first += 1;
+            if(currentLocation.first > mostRight){
+                mostRight = currentLocation.first;
+            }
             locations.push_back(currentLocation);
         } else if(strcmp(msg, "up") == 0){
             currentLocation.second += 1;
+            if(currentLocation.second > mostUp){
+                mostUp = currentLocation.second;
+            }
             locations.push_back(currentLocation);
         } else if(strcmp(msg, "down") == 0){
             currentLocation.second -= 1;
@@ -41,16 +47,18 @@ void Mapper::getMappingMessages(const char* msg)
                 loc.first = loc.first + (mostLeft * -1);
                 loc.second = loc.second + (mostDown * -1);
             }
-            return;
+            return "MAPPINGOK";
         }
         else{
             std::cout << "Invalid mapping command: " << msg << std::endl;
-            return;
+            return "INVALID";
         }
+
+        return "OK";
     }
 
     else{
         std::cout << "Mapping is already done." << std::endl;
-        return;
+        return "MAPPINGDONE";
     }
 }

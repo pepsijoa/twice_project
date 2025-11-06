@@ -3,6 +3,7 @@ import mainController;
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <string>
 
 int main()
 {
@@ -18,7 +19,11 @@ int main()
     mainCtrl.startWebServerThread();
 
     while(true) {
-        mainCtrl.interpretMessage();
+        std::string interpretAck = mainCtrl.interpretMessage();
+        if(interpretAck == "DONEMAPPING"){
+            //TODO : 매핑 이후 다시 done mapping을 앱에서 보내는 경우 처리 방안.
+            break;
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     

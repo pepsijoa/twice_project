@@ -123,7 +123,7 @@ size_t MainController::getQueueSize()
     return messageQueue.size();
 }
 
-void MainController::interpretMessage()
+std::string MainController::interpretMessage()
 {
     Message msg;
     if(popMessage(msg, 5000)){
@@ -131,14 +131,19 @@ void MainController::interpretMessage()
         std::cout << " 데이터 : " << msg.data << std::endl;
         std::cout << " 남은 메시지 : " << getQueueSize() << std::endl;
 
+        std::string ACKMSG = "";
         if(msg.data == "up" || msg.data == "down" || msg.data == "left" || msg.data == "right" || msg.data == "doneMapping"){
-            mapper->getMappingMessages(msg.data.c_str());
+            ACKMSG = mapper->getMappingMessages(msg.data.c_str());
         }
         else{
             std::cout << "Unknown command: " << msg.data << std::endl;
+            ACKMSG = "UNKNOWNCOMMAND";
         }
+
+        return ACKMSG;
     }
     else{
         std::cout << "." << std::flush;
+        return "";
     }
 }
