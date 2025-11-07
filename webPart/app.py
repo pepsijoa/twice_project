@@ -58,6 +58,31 @@ def control():
     
     return jsonify({'status': 'success', 'direction': direction})
 
+# 매핑 완료 라우트
+@app.route('/mapping-complete', methods=['POST'])
+def mapping_complete():
+    data = request.get_json()
+    action = data.get('action')
+    
+    if action == 'doneMapping':
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            client.connect(SOCKET_PATH)
+            client.send('doneMapping'.encode('utf-8'))
+            
+            response = client.recv(1024).decode('utf-8')
+            print(f"C++ 서버 응답 (매핑 완료): {response}")
+            
+            client.close()
+            time.sleep(0.1)
+            
+            return jsonify({'status': 'success', 'action': 'doneMapping', 'response': response})
+        except Exception as e:
+            print(f"매핑 완료 신호 전송 실패: {e}")
+            return jsonify({'status': 'error', 'message': str(e)})
+    else:
+        return jsonify({'status': 'error', 'message': 'Invalid action'})
+
 # 인증서 다운로드 라우트
 @app.route('/download-cert')
 def download_cert():
@@ -214,6 +239,9 @@ def cert_guide():
     '''
 
 if __name__ == '__main__':
+    # 포트 설정 (환경변수에서 가져오거나 기본값 5000)
+    port = int(os.environ.get('FLASK_PORT', 5000))
+    
     # SSL 인증서 파일 경로
     cert_dir = os.path.join(os.path.dirname(__file__), 'certification', 'certs')
     cert_file = os.path.join(cert_dir, 'cert.pem')
@@ -222,12 +250,12 @@ if __name__ == '__main__':
     # 인증서가 있으면 HTTPS로 실행, 없으면 HTTP로 실행
     if os.path.exists(cert_file) and os.path.exists(key_file):
         print("🔒 HTTPS 모드로 서버를 시작합니다...")
-        print(f"📱 접속 주소: https://<IP주소>:5000")
+        print(f"📱 접속 주소: https://<IP주소>:{port}")
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(cert_file, key_file)
-        app.run(debug=True, host='0.0.0.0', port=5000, ssl_context=context)
+        app.run(debug=True, host='0.0.0.0', port=port, ssl_context=context)
     else:
         print("⚠️  SSL 인증서가 없습니다. HTTP 모드로 서버를 시작합니다...")
         print(f"💡 HTTPS를 사용하려면: python certification/generate_cert.py 실행")
-        print(f"📱 접속 주소: http://<IP주소>:5000")
-        app.run(debug=True, host='0.0.0.0', port=5000)
+        print(f"📱 접속 주소: http://<IP주소>:{port}")
+        app.run(debug=True, host='0.0.0.0', port=port)

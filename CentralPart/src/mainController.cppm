@@ -62,6 +62,6 @@ public:
     void pushMessage(int priority, const std::string& data);
 
     // 메시지 큐에서 가져온 데이터 해석
-    void interpretMessage();
+    std::string interpretMessage();
         
 };

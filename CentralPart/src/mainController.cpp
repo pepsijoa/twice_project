@@ -17,6 +17,8 @@ import mapper;
 //생성자
 MainController::MainController() : webCtrl(nullptr), mapper(nullptr), running(false)
 {   
+    // Mapper 초기화
+    mapper = std::make_unique<Mapper>();
 }
 
 //소멸자
@@ -77,9 +79,25 @@ void MainController::serverThreadFunction()
             std::string receivedData(buffer);
             pushMessage(1, receivedData);  // 우선순위 1로 설정
             
-            webCtrl->send_response("ACK");
-            std::cout << "메시지 수신 및 큐에 추가: " << receivedData << std::endl;
+
+            //TODO : message를 처리할 수 있는지 파악해야 함.
+            //가령 실제 움직일 수 없다고 moveController가 파악한 경우 해결 방법
+            if(receive_message == "up" || receive_message == "down" || receive_message == "left" 
+                || receive_message == "right"){
+                if(mapper->IsMappingDone()){
+                    webCtrl->send_response("MAPPINGDONE");
+                    continue;
+                }
+                else{
+                    webCtrl->send_response("ACK");
+                    continue;
+                }
+                
+            }
         }
+        
+        // 각 요청 처리 후 잠시 대기 (다음 연결을 위해)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
 
@@ -123,22 +141,22 @@ size_t MainController::getQueueSize()
     return messageQueue.size();
 }
 
-void MainController::interpretMessage()
+std::string MainController::interpretMessage()
 {
     Message msg;
     if(popMessage(msg, 5000)){
-        std::cout << " 우선순위 :" << msg.priority << std::endl;
-        std::cout << " 데이터 : " << msg.data << std::endl;
-        std::cout << " 남은 메시지 : " << getQueueSize() << std::endl;
-
+        std::string ACKMSG = "";
         if(msg.data == "up" || msg.data == "down" || msg.data == "left" || msg.data == "right" || msg.data == "doneMapping"){
-            mapper->getMappingMessages(msg.data.c_str());
+            ACKMSG = mapper->getMappingMessages(msg.data.c_str());
         }
         else{
             std::cout << "Unknown command: " << msg.data << std::endl;
+            ACKMSG = "UNKNOWNCOMMAND";
         }
+
+        return ACKMSG;
     }
     else{
-        std::cout << "." << std::flush;
+        return "NOMESSAGE";
     }
 }
