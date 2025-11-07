@@ -62,3 +62,8 @@ std::string Mapper::getMappingMessages(const char* msg)
         return "MAPPINGDONE";
     }
 }
+
+bool IsMappingDone()
+{
+    return doneMapping;
+}

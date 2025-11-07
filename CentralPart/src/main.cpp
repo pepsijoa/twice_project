@@ -18,10 +18,11 @@ int main()
     // 웹 서버를 별도 스레드에서 시작
     mainCtrl.startWebServerThread();
 
+    //get msg from web controller
+    //send msg to arudino controller (move controller)
     while(true) {
         std::string interpretAck = mainCtrl.interpretMessage();
         if(interpretAck == "DONEMAPPING"){
-            //TODO : 매핑 이후 다시 done mapping을 앱에서 보내는 경우 처리 방안.
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));

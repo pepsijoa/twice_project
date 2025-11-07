@@ -165,6 +165,53 @@ h1 {
     font-size: 1rem;
 }
 
+/* 매핑 완료 버튼 */
+.mapping-button-container {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.mapping-complete-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px 30px;
+    background: linear-gradient(145deg, #4CAF50, #45a049);
+    border: none;
+    border-radius: 50px;
+    color: white;
+    font-weight: bold;
+    font-size: 1.1rem;
+    cursor: pointer;
+    box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+    transition: all 0.3s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mapping-complete-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(76, 175, 80, 0.6);
+    background: linear-gradient(145deg, #5CBF60, #4CAF50);
+}
+
+.mapping-complete-btn:active {
+    transform: translateY(-1px) scale(0.98);
+}
+
+.mapping-complete-btn.clicked {
+    background: linear-gradient(145deg, #8BC34A, #4CAF50);
+    animation: pulse 0.3s ease;
+}
+
+.mapping-icon {
+    font-size: 1.5rem;
+}
+
+.mapping-text {
+    font-size: 1rem;
+}
+
 /* 반응형 디자인 */
 @media (max-width: 768px) {
     body {
@@ -212,6 +259,15 @@ h1 {
     .home-icon {
         font-size: 1.3rem;
     }
+    
+    .mapping-complete-btn {
+        padding: 12px 25px;
+        font-size: 1rem;
+    }
+    
+    .mapping-icon {
+        font-size: 1.3rem;
+    }
 }
 
 @media (max-width: 480px) {
@@ -244,6 +300,15 @@ h1 {
     }
     
     .home-icon {
+        font-size: 1.2rem;
+    }
+    
+    .mapping-complete-btn {
+        padding: 10px 20px;
+        font-size: 0.9rem;
+    }
+    
+    .mapping-icon {
         font-size: 1.2rem;
     }
 }

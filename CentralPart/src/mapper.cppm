@@ -16,5 +16,6 @@ export class Mapper{
     public:
         Mapper();
         std::string getMappingMessages(const char* msg);
+        bool IsMappingDone();
         ~Mapper();
 };
