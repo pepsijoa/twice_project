@@ -8,13 +8,14 @@ export module mapper;
 export class Mapper{
     private:
         int mostLeft = 0, mostDown = 0;
-
+        int mostRight = 0, mostUp = 0;
         bool doneMapping = false;
         std::vector<std::pair<int, int>> locations;
         std::pair<int, int> currentLocation{0,0};
 
     public:
         Mapper();
-        void getMappingMessages(const char* msg);
+        std::string getMappingMessages(const char* msg);
+        bool IsMappingDone();
         ~Mapper();
 };
