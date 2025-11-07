@@ -82,8 +82,8 @@ void MainController::serverThreadFunction()
 
             //TODO : message를 처리할 수 있는지 파악해야 함.
             //가령 실제 움직일 수 없다고 moveController가 파악한 경우 해결 방법
-            if(receive_message == "up" || receive_message == "down" || receive_message == "left" 
-                || receive_message == "right"){
+            if(receivedData == "up" || receivedData == "down" || receivedData == "left" 
+                || receivedData == "right"){
                 if(mapper->IsMappingDone()){
                     webCtrl->send_response("MAPPINGDONE");
                     continue;
@@ -91,8 +91,7 @@ void MainController::serverThreadFunction()
                 else{
                     webCtrl->send_response("ACK");
                     continue;
-                }
-                
+                }   
             }
         }
         

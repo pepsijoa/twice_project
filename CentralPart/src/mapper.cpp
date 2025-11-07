@@ -11,7 +11,10 @@ Mapper::Mapper() {
 
 Mapper::~Mapper() {
 }
-
+/*
+msg로 doneMapping -> MAPPINGOK
+이후에 왼, 오, 위, 아래 들어오면, MAPPINGDONE
+*/
 std::string Mapper::getMappingMessages(const char* msg)
 {
     if(!doneMapping)
@@ -63,7 +66,7 @@ std::string Mapper::getMappingMessages(const char* msg)
     }
 }
 
-bool IsMappingDone()
+bool Mapper::IsMappingDone()
 {
     return doneMapping;
 }
