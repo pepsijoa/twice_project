@@ -266,10 +266,12 @@ cameraBtn.addEventListener('click', async function() {
     
     // 버튼 비활성화 (중복 클릭 방지)
     this.disabled = true;
-    const originalText = this.querySelector('.camera-text').textContent;
-    this.querySelector('.camera-text').textContent = '촬영 중...';
+    const cameraIcon = this.querySelector('.camera-icon');
+    const originalIcon = cameraIcon.textContent;
+    cameraIcon.textContent = '⏳'; // 촬영 중 아이콘
     
     try {
+        console.log('📸 카메라 촬영 요청 시작');
         const response = await fetch('/camera', {
             method: 'POST',
             headers: {
@@ -278,6 +280,7 @@ cameraBtn.addEventListener('click', async function() {
         });
         
         const data = await response.json();
+        console.log('카메라 응답:', data);
         
         if (data.status === 'success') {
             console.log('✅ 카메라 촬영 성공:', data.message);
@@ -299,7 +302,7 @@ cameraBtn.addEventListener('click', async function() {
     } finally {
         // 버튼 복구
         this.disabled = false;
-        this.querySelector('.camera-text').textContent = originalText;
+        cameraIcon.textContent = originalIcon;
     }
 });
 
