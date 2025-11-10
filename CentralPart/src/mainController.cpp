@@ -15,10 +15,13 @@ import webController;
 import mapper;
 
 //생성자
-MainController::MainController() : webCtrl(nullptr), mapper(nullptr), running(false)
+MainController::MainController() : webCtrl(nullptr), mapper(nullptr), camCtrl(nullptr), running(false)
 {   
     // Mapper 초기화
     mapper = std::make_unique<Mapper>();
+    
+    // CamController 초기화
+    camCtrl = std::make_unique<CamController>(0);
 }
 
 //소멸자
@@ -89,9 +92,16 @@ void MainController::serverThreadFunction()
                     continue;
                 }
                 else{
+                    // movecontroller 넣을 곳
                     webCtrl->send_response("ACK");
                     continue;
                 }   
+            }
+            else if (receivedData == "featureShot"){
+                // 임시로 항상 성공 응답 보내기 (카메라 기능이 완전히 구현될 때까지)
+                std::cout << "카메라 촬영 요청 받음 (임시 성공 응답)" << std::endl;
+                webCtrl->send_response("FEATURESHOT_OK");
+                continue;
             }
             else if(receivedData == "remapping")
             {

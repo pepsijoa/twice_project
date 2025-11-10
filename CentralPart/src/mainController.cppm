@@ -12,6 +12,8 @@ export module mainController;
 
 import webController;
 import mapper;
+import camController;
+
 
 // 메시지 구조체
 export struct Message {
@@ -36,7 +38,8 @@ private:
 
     std::unique_ptr<WebController> webCtrl;
     std::unique_ptr<Mapper> mapper;
-
+    std::unique_ptr<CamController> camCtrl;
+    
     std::thread serverThread;
     bool running;
     

@@ -2,6 +2,7 @@
 const directionButtons = document.querySelectorAll('.direction-btn');
 const mappingBtn = document.getElementById('mapping-btn');
 const remappingBtn = document.getElementById('remapping-btn');
+const cameraBtn = document.getElementById('camera-btn');
 const mapGrid = document.getElementById('map-grid');
 
 let mapUpdateInterval = null;
@@ -252,6 +253,53 @@ remappingBtn.addEventListener('click', async function() {
     } catch (error) {
         console.error('❌ 네트워크 오류:', error);
         alert('❌ 네트워크 연결 오류가 발생했습니다.');
+    }
+});
+
+// 카메라 버튼 이벤트 리스너
+cameraBtn.addEventListener('click', async function() {
+    this.classList.add('clicked');
+    
+    setTimeout(() => {
+        this.classList.remove('clicked');
+    }, 300);
+    
+    // 버튼 비활성화 (중복 클릭 방지)
+    this.disabled = true;
+    const originalText = this.querySelector('.camera-text').textContent;
+    this.querySelector('.camera-text').textContent = '촬영 중...';
+    
+    try {
+        const response = await fetch('/camera', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            console.log('✅ 카메라 촬영 성공:', data.message);
+            
+            // 성공 알림
+            alert(`📸 ${data.message}`);
+            
+        } else if (data.status === 'failed') {
+            console.error('❌ 카메라 촬영 실패:', data.message);
+            alert(`❌ ${data.message}`);
+            
+        } else {
+            console.error('❌ 서버 오류:', data.message);
+            alert(`❌ 오류: ${data.message}`);
+        }
+    } catch (error) {
+        console.error('❌ 네트워크 오류:', error);
+        alert('❌ 네트워크 연결 오류가 발생했습니다.');
+    } finally {
+        // 버튼 복구
+        this.disabled = false;
+        this.querySelector('.camera-text').textContent = originalText;
     }
 });
 

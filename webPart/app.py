@@ -139,6 +139,52 @@ def remapping():
         print(f"리매핑 신호 전송 실패: {response}")
         return jsonify({'status': 'error', 'message': response})
 
+# 카메라 촬영 라우트
+@app.route('/camera', methods=['POST'])
+def camera_shot():
+    """카메라 촬영 요청 처리"""
+    try:
+        print("카메라 촬영 요청 시작")
+        success, response = safe_socket_communication('featureShot', timeout=10)
+        
+        if not success:
+            print(f"카메라 촬영 요청 실패: {response}")
+            return jsonify({
+                'status': 'error', 
+                'message': f'카메라 요청 전송 실패: {response}'
+            })
+        
+        print(f"카메라 응답 받음: '{response}'")
+        
+        # C++에서의 응답 처리
+        if response.strip() == "FEATURESHOT_OK":
+            print("카메라 촬영 성공")
+            return jsonify({
+                'status': 'success',
+                'message': '카메라 촬영 성공',
+                'result': 'FEATURESHOT_OK'
+            })
+        elif response.strip() == "FEATURESHOT_FAIL":
+            print("카메라 촬영 실패")
+            return jsonify({
+                'status': 'failed',
+                'message': '카메라 촬영 실패',
+                'result': 'FEATURESHOT_FAIL'
+            })
+        else:
+            print(f"예상치 못한 카메라 응답: '{response}'")
+            return jsonify({
+                'status': 'error',
+                'message': f'예상치 못한 응답: {response}'
+            })
+    
+    except Exception as e:
+        print(f"카메라 촬영 중 오류 발생: {str(e)}")
+        return jsonify({
+            'status': 'error', 
+            'message': f'카메라 촬영 중 오류: {str(e)}'
+        })
+
 # 맵 데이터 가져오기 라우트
 @app.route('/get-map', methods=['GET'])
 def get_map():

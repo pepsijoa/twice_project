@@ -108,9 +108,7 @@ std::string Mapper::getMappingMessages(const char* msg)
         }
         
         else if(strcmp(msg, "featureShot") == 0){
-            featureLocations.push_back(currentLocation);
-            std::cout << "Feature shot command received." << std::endl;
-            
+            featureLocations.push_back(currentLocation);            
             // 특징점 추가 후 맵 업데이트
             updateMapWithCurrentState();
             
