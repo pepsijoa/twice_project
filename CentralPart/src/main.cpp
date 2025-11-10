@@ -22,7 +22,10 @@ int main()
     //send msg to arudino controller (move controller)
     while(true) {
         std::string interpretAck = mainCtrl.interpretMessage();
-        if(interpretAck == "MAPPINGOK"){
+        
+        
+        //mapping이 완료 됨.
+        if(interpretAck == "DONEMAPPING"){
             mainCtrl.showMap();
             break;
         }

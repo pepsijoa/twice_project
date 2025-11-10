@@ -21,5 +21,7 @@ export class Mapper{
         std::string getMappingMessages(const char* msg);
         bool IsMappingDone();
         void showMap();
+        std::vector<std::pair<int, int>> findSearchingPathBFS(const std::vector<std::vector<int>>& map, std::pair<int,int> start, std::pair<int,int> end);
+        std::vector<std::pair<int, int>> findNavigatingPathBFS(const std::vector<std::vector<int>>& map, std::pair<int,int> start, std::pair<int,int> end);
         ~Mapper();
 };

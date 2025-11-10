@@ -4,6 +4,7 @@ module;
 #include <iostream>
 #include <vector>
 #include <queue>
+#include<algorithm>
 
 module mapper;
 
@@ -27,25 +28,36 @@ std::string Mapper::getMappingMessages(const char* msg)
                 mostLeft = currentLocation.second;
             }
             locations.push_back(currentLocation);
-        } else if(strcmp(msg, "right") == 0){
+            return "OK";
+        } 
+        
+        else if(strcmp(msg, "right") == 0){
             currentLocation.second += 1;
             if(currentLocation.second > mostRight){
                 mostRight = currentLocation.second;
             }
             locations.push_back(currentLocation);
-        } else if(strcmp(msg, "up") == 0){
+            return "OK";
+        } 
+        
+        else if(strcmp(msg, "up") == 0){
             currentLocation.first += 1;
             if(currentLocation.first > mostUp){
                 mostUp = currentLocation.first;
             }
             locations.push_back(currentLocation);
-        } else if(strcmp(msg, "down") == 0){
+            return "OK";
+        } 
+        
+        else if(strcmp(msg, "down") == 0){
             currentLocation.first -= 1;
             if(currentLocation.first < mostDown){
                 mostDown = currentLocation.first;
             }
             locations.push_back(currentLocation);
+            return "OK";
         }
+
         else if(strcmp(msg, "doneMapping") == 0){
             doneMapping = true;
             
@@ -65,7 +77,7 @@ std::string Mapper::getMappingMessages(const char* msg)
             currentLocation.second = currentLocation.second + (mostLeft * -1);
 
             createMap();
-            return "MAPPINGOK";
+            return "DONEMAPPING";
         }
         
         else if(strcmp(msg, "featureShot") == 0){
@@ -78,8 +90,6 @@ std::string Mapper::getMappingMessages(const char* msg)
             std::cout << "Invalid mapping command: " << msg << std::endl;
             return "INVALID";
         }
-
-        return "OK";
     }
 
     else{
@@ -126,6 +136,130 @@ void Mapper::createMap()
             map[y][x] = 2;
         }
     }
+}
+
+std::vector<std::pair<int, int>> Mapper::findSearchingPathBFS(const std::vector<std::vector<int>>& map, std::pair<int,int>start, std::pair<int,int>end)
+{
+	int ysize = map.size();
+	int xsize = map[0].size();
+
+	int dy[] {1, -1, 0, 0};
+	int dx[]{ 0, 0, -1, 1 };
+
+	std::vector<std::vector<bool>> visited(ysize, std::vector<bool>(xsize, false));
+	std::vector<std::pair<int, int>> result;
+	std::vector<std::vector<std::pair<int, int>>> parent(ysize, std::vector<std::pair<int, int>>(xsize, { -1,-1 }));
+
+	std::queue<std::pair<int, int>> q;
+	q.push(start);
+	visited[start.first][start.second] = true; 
+
+	while (!q.empty())
+	{
+		std::pair<int, int> cur = q.front();
+		q.pop();
+
+		// 목적지에 도착하면 탐색 종료
+		if (cur.first == end.first && cur.second == end.second) break;
+		
+		for (int i = 0; i < 4; i++) {
+			int ny = cur.first + dy[i];
+			int nx = cur.second + dx[i];
+
+			// 범위 체크
+			if (ny < 0 || nx < 0 || ny >= ysize || nx >= xsize) continue;
+			if (map[ny][nx] < 0) continue;
+			if (visited[ny][nx]) continue;
+
+			// 방문 처리 및 부모 기록
+			visited[ny][nx] = true;
+			parent[ny][nx] = { cur.first, cur.second };
+			q.push({ ny, nx });
+		}
+	}
+	if ((parent[end.first][end.second].first != -1 || 
+	     parent[end.first][end.second].second != -1) ||
+	    (end.first == start.first && end.second == start.second)) {
+		
+		int cy = end.first, cx = end.second;
+		while (cy != -1 && cx != -1) {
+			result.push_back({ cy, cx });
+			if (cy == start.first && cx == start.second) break;
+
+			auto p = parent[cy][cx];
+			cy = p.first;
+			cx = p.second;
+		}
+		std::reverse(result.begin(), result.end());
+		return result;
+	}
+
+	else {
+		result.clear();
+		return result;
+	}
+}
+
+std::vector<std::pair<int, int>> Mapper::findNavigatingPathBFS(const std::vector<std::vector<int>>& map, std::pair<int,int>start, std::pair<int,int>end)
+{
+	int ysize = map.size();
+	int xsize = map[0].size();
+
+	int dy[] {1, -1, 0, 0};
+	int dx[]{ 0, 0, -1, 1 };
+
+	std::vector<std::vector<bool>> visited(ysize, std::vector<bool>(xsize, false));
+	std::vector<std::pair<int, int>> result;
+	std::vector<std::vector<std::pair<int, int>>> parent(ysize, std::vector<std::pair<int, int>>(xsize, { -1,-1 }));
+
+	std::queue<std::pair<int, int>> q;
+	q.push(start);
+	visited[start.first][start.second] = true; 
+
+	while (!q.empty())
+	{
+		std::pair<int, int> cur = q.front();
+		q.pop();
+
+		// 목적지에 도착하면 탐색 종료
+		if (cur.first == end.first && cur.second == end.second) break;
+		
+		for (int i = 0; i < 4; i++) {
+			int ny = cur.first + dy[i];
+			int nx = cur.second + dx[i];
+
+			// 범위 체크
+			if (ny < 0 || nx < 0 || ny >= ysize || nx >= xsize) continue;
+			if (map[ny][nx] < 1) continue;
+			if (visited[ny][nx]) continue;
+
+			// 방문 처리 및 부모 기록
+			visited[ny][nx] = true;
+			parent[ny][nx] = { cur.first, cur.second };
+			q.push({ ny, nx });
+		}
+	}
+	if ((parent[end.first][end.second].first != -1 || 
+	     parent[end.first][end.second].second != -1) ||
+	    (end.first == start.first && end.second == start.second)) {
+		
+		int cy = end.first, cx = end.second;
+		while (cy != -1 && cx != -1) {
+			result.push_back({ cy, cx });
+			if (cy == start.first && cx == start.second) break;
+
+			auto p = parent[cy][cx];
+			cy = p.first;
+			cx = p.second;
+		}
+		std::reverse(result.begin(), result.end());
+		return result;
+	}
+
+	else {
+		result.clear();
+		return result;
+	}
 }
 
 void Mapper::showMap()

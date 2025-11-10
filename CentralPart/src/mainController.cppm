@@ -26,6 +26,14 @@ export struct Message {
 
 export class MainController {
 private:
+    enum Mode{
+        MAPPING = 0,
+        SEARCHING = 1,
+        NAVIGATING = 2
+    };
+
+    Mode currentMode = MAPPING;
+    
     std::unique_ptr<WebController> webCtrl;
     std::unique_ptr<Mapper> mapper;
 
