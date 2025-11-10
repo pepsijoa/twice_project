@@ -12,6 +12,8 @@ export module mainController;
 
 import webController;
 import mapper;
+import camController;
+
 
 // 메시지 구조체
 export struct Message {
@@ -26,9 +28,18 @@ export struct Message {
 
 export class MainController {
 private:
+    enum Mode{
+        MAPPING = 0,
+        SEARCHING = 1,
+        NAVIGATING = 2
+    };
+
+    Mode currentMode = MAPPING;
+
     std::unique_ptr<WebController> webCtrl;
     std::unique_ptr<Mapper> mapper;
-
+    std::unique_ptr<CamController> camCtrl;
+    
     std::thread serverThread;
     bool running;
     
@@ -63,5 +74,8 @@ public:
 
     // 메시지 큐에서 가져온 데이터 해석
     std::string interpretMessage();
-        
+
+    
+    // 맵 데이터를 JSON 형식으로 반환
+    std::string getMapAsJson();
 };
