@@ -63,5 +63,6 @@ public:
 
     // 메시지 큐에서 가져온 데이터 해석
     std::string interpretMessage();
-        
+
+    void showMap();
 };
