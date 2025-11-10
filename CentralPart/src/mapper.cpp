@@ -28,6 +28,10 @@ std::string Mapper::getMappingMessages(const char* msg)
                 mostLeft = currentLocation.second;
             }
             locations.push_back(currentLocation);
+            
+            // 실시간 맵 업데이트
+            updateMapWithCurrentState();
+            
             return "OK";
         } 
         
@@ -37,6 +41,10 @@ std::string Mapper::getMappingMessages(const char* msg)
                 mostRight = currentLocation.second;
             }
             locations.push_back(currentLocation);
+            
+            // 실시간 맵 업데이트
+            updateMapWithCurrentState();
+            
             return "OK";
         } 
         
@@ -46,6 +54,10 @@ std::string Mapper::getMappingMessages(const char* msg)
                 mostUp = currentLocation.first;
             }
             locations.push_back(currentLocation);
+            
+            // 실시간 맵 업데이트
+            updateMapWithCurrentState();
+            
             return "OK";
         } 
         
@@ -55,34 +67,53 @@ std::string Mapper::getMappingMessages(const char* msg)
                 mostDown = currentLocation.first;
             }
             locations.push_back(currentLocation);
+            
+            // 실시간 맵 업데이트
+            updateMapWithCurrentState();
+            
             return "OK";
         }
 
         else if(strcmp(msg, "doneMapping") == 0){
             doneMapping = true;
             
+            // 실제 좌표 데이터 보정 (영구적으로 변경)
             for(auto& loc : locations){
                 loc.second = loc.second + (mostLeft * -1);
                 loc.first = loc.first + (mostDown * -1);
             }
             
-            //feature 지점 또한 보정
+            // feature 지점 좌표 보정
             for(auto& loc : featureLocations){
                 loc.second = loc.second + (mostLeft * -1);
                 loc.first = loc.first + (mostDown * -1);
             }
             
-            //현재 위치 보정.
+            // 현재 위치 보정
             currentLocation.first = currentLocation.first + (mostDown * -1);
             currentLocation.second = currentLocation.second + (mostLeft * -1);
 
-            createMap();
+            // 경계값 리셋 (이제 모든 좌표가 0 이상)
+            mostLeft = 0;
+            mostDown = 0;
+            mostRight = currentLocation.second;
+            mostUp = currentLocation.first;
+            
+            // 최종 맵 생성 (updateMapWithCurrentState 사용)
+            updateMapWithCurrentState();
+            
+            std::cout << "✅ 매핑 완료 - 최종 맵 생성됨" << std::endl;
+            
             return "DONEMAPPING";
         }
         
         else if(strcmp(msg, "featureShot") == 0){
             featureLocations.push_back(currentLocation);
             std::cout << "Feature shot command received." << std::endl;
+            
+            // 특징점 추가 후 맵 업데이트
+            updateMapWithCurrentState();
+            
             return "FEATURESHOTOK";
         }
 
@@ -95,45 +126,6 @@ std::string Mapper::getMappingMessages(const char* msg)
     else{
         std::cout << "Mapping is already done." << std::endl;
         return "MAPPINGDONE";
-    }
-}
-
-void Mapper::createMap()
-{
-    if(locations.empty()) {
-        std::cout << "No locations to create map" << std::endl;
-        return;
-    }
-    
-    // locations에서 최대 x, y 좌표 찾기
-    int maxX = 0, maxY = 0;
-    for(const auto& loc : locations) {
-        if(loc.second > maxX) maxX = loc.second;
-        if(loc.first > maxY) maxY = loc.first;
-    }
-
-    // 맵 크기 설정 (0부터 시작하므로 +1)
-    int mapWidth = maxX + 1;
-    int mapHeight = maxY + 1;
-    
-    map.clear();
-    map.resize(mapHeight, std::vector<int>(mapWidth, 0));
-    // locations에 있는 좌표들에 1 할당
-    for(const auto& loc : locations) {
-        int x = loc.second;
-        int y = loc.first;
-        if(x >= 0 && x < mapWidth && y >= 0 && y < mapHeight) {
-            map[y][x] = 1;
-        }
-    }
-
-    // featureLocations에 있는 좌표들에 2 할당
-    for(const auto& loc : featureLocations) {
-        int x = loc.second;
-        int y = loc.first;
-        if(x >= 0 && x < mapWidth && y >= 0 && y < mapHeight) {
-            map[y][x] = 2;
-        }
     }
 }
 
@@ -261,17 +253,6 @@ std::vector<std::pair<int, int>> Mapper::findNavigatingPathBFS(const std::vector
 	}
 }
 
-void Mapper::showMap()
-{
-    std::cout << "Map display complete." << std::endl;
-    for(int y = map.size() - 1; y >= 0; --y) {
-        for(int x = 0; x < map[y].size(); ++x) {
-            std::cout << map[y][x] << " ";
-        }
-        std::cout << std::endl;
-    }
-    
-}
 bool Mapper::IsMappingDone()
 {
     return doneMapping;
@@ -279,5 +260,85 @@ bool Mapper::IsMappingDone()
 
 std::vector<std::vector<int>> Mapper::getMap() const
 {
-    return map;
+    std::vector<std::vector<int>> mapCopy = map;
+    
+    if (!mapCopy.empty() && 
+        currentLocation.first >= 0 && currentLocation.first < static_cast<int>(mapCopy.size()) &&
+        currentLocation.second >= 0 && currentLocation.second < static_cast<int>(mapCopy[0].size())) {
+        mapCopy[currentLocation.first][currentLocation.second] = 3;
+    }
+    
+    return mapCopy;
+}
+
+// 실시간 맵 업데이트 함수
+void Mapper::updateMapWithCurrentState()
+{
+    if(locations.empty()) {
+        return;
+    }
+    
+    std::vector<std::pair<int, int>> tempLocations;
+    std::vector<std::pair<int, int>> tempFeatureLocations;
+    
+    // locations 좌표 보정
+    for(const auto& loc : locations) {
+        tempLocations.push_back({
+            loc.first + (mostDown * -1),   // y 좌표 보정
+            loc.second + (mostLeft * -1)   // x 좌표 보정
+        });
+    }
+    
+    // featureLocations 좌표 보정
+    for(const auto& loc : featureLocations) {
+        tempFeatureLocations.push_back({
+            loc.first + (mostDown * -1),   // y 좌표 보정
+            loc.second + (mostLeft * -1)   // x 좌표 보정
+        });
+    }
+    
+    // 보정된 좌표들에서 최대 x, y 좌표 찾기
+    int maxX = 0, maxY = 0;
+    for(const auto& loc : tempLocations) {
+        if(loc.second > maxX) maxX = loc.second;
+        if(loc.first > maxY) maxY = loc.first;
+    }
+    for(const auto& loc : tempFeatureLocations) {
+        if(loc.second > maxX) maxX = loc.second;
+        if(loc.first > maxY) maxY = loc.first;
+    }
+
+    // 맵 크기 설정 (0부터 시작하므로 +1)
+    int mapWidth = maxX + 1;
+    int mapHeight = maxY + 1;
+    
+    // 맵 초기화
+    map.clear();
+    map.resize(mapHeight, std::vector<int>(mapWidth, 0));
+
+    // 보정된 locations에 있는 좌표들에 1 할당 (이동 경로)
+    for(const auto& loc : tempLocations) {
+        int x = loc.second;
+        int y = loc.first;
+        if(x >= 0 && x < mapWidth && y >= 0 && y < mapHeight) {
+            map[y][x] = 1;
+        }
+    }
+
+    // 보정된 featureLocations에 있는 좌표들에 2 할당 (특징점)
+    for(const auto& loc : tempFeatureLocations) {
+        int x = loc.second;
+        int y = loc.first;
+        if(x >= 0 && x < mapWidth && y >= 0 && y < mapHeight) {
+            map[y][x] = 2;
+        }
+    }
+
+    // 현재 좌표들을 임시로 보정하여 맵 생성
+    int currentY = currentLocation.first + (mostDown * -1);
+    int currentX = currentLocation.second + (mostLeft * -1);
+
+    if(currentY >= 0 && currentY < mapHeight && currentX >= 0 && currentX < mapWidth) {
+        map[currentY][currentX] = 3;
+    }
 }

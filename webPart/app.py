@@ -91,7 +91,17 @@ def control():
     
     if success:
         print(f"C++ 서버 응답: {response}")
-        return jsonify({'status': 'success', 'direction': direction, 'response': response})
+        
+        # MAPPINGDONE 응답 처리
+        if response == "MAPPINGDONE":
+            return jsonify({
+                'status': 'mapping_done', 
+                'direction': direction, 
+                'response': response,
+                'message': '현재 매핑은 모두 완료되었습니다.'
+            })
+        else:
+            return jsonify({'status': 'success', 'direction': direction, 'response': response})
     else:
         print(f"소켓 통신 실패: {response}")
         return jsonify({'status': 'error', 'message': response})
@@ -113,6 +123,21 @@ def mapping_complete():
             return jsonify({'status': 'error', 'message': response})
     else:
         return jsonify({'status': 'error', 'message': 'Invalid action'})
+
+# 리매핑 라우트
+@app.route('/remapping', methods=['POST'])
+def remapping():
+    success, response = safe_socket_communication('remapping')
+    
+    if success:
+        print(f"C++ 서버 응답 (리매핑): {response}")
+        if response == "REMAPPING_QUEUED":
+            return jsonify({'status': 'success', 'action': 'remapping', 'message': '리매핑이 요청되었습니다. 잠시 후 시작됩니다.'})
+        else:
+            return jsonify({'status': 'success', 'action': 'remapping', 'response': response})
+    else:
+        print(f"리매핑 신호 전송 실패: {response}")
+        return jsonify({'status': 'error', 'message': response})
 
 # 맵 데이터 가져오기 라우트
 @app.route('/get-map', methods=['GET'])

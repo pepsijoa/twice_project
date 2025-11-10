@@ -14,13 +14,12 @@ export class Mapper{
         std::vector<std::pair<int, int>> locations{{0,0}};
         std::vector<std::pair<int, int>> featureLocations;
         std::pair<int, int> currentLocation{0,0};
-        void createMap();
+        void updateMapWithCurrentState();  // 실시간 맵 업데이트 함수
         
     public:
         Mapper();
         std::string getMappingMessages(const char* msg);
         bool IsMappingDone();
-        void showMap();
         std::vector<std::vector<int>> getMap() const;
         std::vector<std::pair<int, int>> findSearchingPathBFS(const std::vector<std::vector<int>>& map, std::pair<int,int> start, std::pair<int,int> end);
         std::vector<std::pair<int, int>> findNavigatingPathBFS(const std::vector<std::vector<int>>& map, std::pair<int,int> start, std::pair<int,int> end);

@@ -73,15 +73,15 @@ bool WebController::accept_connection()
         client_fd = -1;
     }
 
-    std::cout << "클라이언트 대기 중..." << std::endl;
+    //std::cout << "클라이언트 대기 중..." << std::endl;
     
     client_fd = accept(server_fd, nullptr, nullptr);
     if (client_fd == -1) {
         std::cerr << "클라이언트 연결 실패" << std::endl;
         return false;
     }
-    
-    std::cout << "클라이언트 연결됨" << std::endl;
+
+    //std::cout << "클라이언트 연결됨" << std::endl;
     return true;
 }
 
@@ -127,8 +127,9 @@ void WebController::send_response(const char* message)
     ssize_t sent = send(client_fd, message, strlen(message), 0);
     if (sent == -1) {
         std::cerr << "응답 전송 실패" << std::endl;
-    } else {
-        std::cout << "응답 전송: " << message << std::endl;
-    }
+    } 
+    // else {
+    //     std::cout << "응답 전송: " << message << std::endl;
+    // }
 }
 

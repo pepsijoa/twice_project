@@ -72,7 +72,6 @@ public:
     // 메시지 큐에서 가져온 데이터 해석
     std::string interpretMessage();
 
-    void showMap();
     
     // 맵 데이터를 JSON 형식으로 반환
     std::string getMapAsJson();
