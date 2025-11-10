@@ -21,6 +21,29 @@
 <body>
     <div class="container">
         <h1>방향 컨트롤러</h1>
+        
+        <!-- 맵 표시 영역 -->
+        <div class="map-container">
+            <h2>실시간 맵</h2>
+            <div class="map-grid" id="map-grid">
+                <!-- 맵 셀들이 동적으로 생성됩니다 -->
+            </div>
+            <div class="map-legend">
+                <div class="legend-item">
+                    <div class="legend-color empty"></div>
+                    <span>빈 공간 (0)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color path"></div>
+                    <span>이동 경로 (1)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color feature"></div>
+                    <span>특징점 (2)</span>
+                </div>
+            </div>
+        </div>
+        
         <div class="controller">
             <!-- 위쪽 버튼 -->
             <div class="button-row">
@@ -52,11 +75,6 @@
                     <span class="text">아래</span>
                 </button>
             </div>
-        </div>
-        
-        <!-- 상태 표시 영역 -->
-        <div class="status">
-            <p id="status-text">버튼을 클릭하세요</p>
         </div>
         
         <!-- 매핑 완료 버튼 -->

@@ -33,7 +33,7 @@ private:
     };
 
     Mode currentMode = MAPPING;
-    
+
     std::unique_ptr<WebController> webCtrl;
     std::unique_ptr<Mapper> mapper;
 
@@ -73,4 +73,7 @@ public:
     std::string interpretMessage();
 
     void showMap();
+    
+    // 맵 데이터를 JSON 형식으로 반환
+    std::string getMapAsJson();
 };

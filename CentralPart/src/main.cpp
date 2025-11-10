@@ -23,11 +23,10 @@ int main()
     while(true) {
         std::string interpretAck = mainCtrl.interpretMessage();
         
-        
+
         //mapping이 완료 됨.
         if(interpretAck == "DONEMAPPING"){
             mainCtrl.showMap();
-            break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }

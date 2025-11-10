@@ -11,7 +11,7 @@ export class Mapper{
         int mostRight = 0, mostUp = 0;
         bool doneMapping = false;
         std::vector<std::vector<int>> map;
-        std::vector<std::pair<int, int>> locations;
+        std::vector<std::pair<int, int>> locations{{0,0}};
         std::vector<std::pair<int, int>> featureLocations;
         std::pair<int, int> currentLocation{0,0};
         void createMap();
@@ -21,6 +21,7 @@ export class Mapper{
         std::string getMappingMessages(const char* msg);
         bool IsMappingDone();
         void showMap();
+        std::vector<std::vector<int>> getMap() const;
         std::vector<std::pair<int, int>> findSearchingPathBFS(const std::vector<std::vector<int>>& map, std::pair<int,int> start, std::pair<int,int> end);
         std::vector<std::pair<int, int>> findNavigatingPathBFS(const std::vector<std::vector<int>>& map, std::pair<int,int> start, std::pair<int,int> end);
         ~Mapper();

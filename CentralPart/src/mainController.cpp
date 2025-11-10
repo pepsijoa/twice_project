@@ -93,6 +93,12 @@ void MainController::serverThreadFunction()
                     continue;
                 }   
             }
+            else if(receivedData == "requestMap"){
+                // 맵 데이터를 JSON 형식으로 전송
+                std::string mapJson = getMapAsJson();
+                webCtrl->send_response(mapJson.c_str());
+                continue;
+            }
         }
         
         // 각 요청 처리 후 잠시 대기 (다음 연결을 위해)
@@ -165,6 +171,10 @@ std::string MainController::interpretMessage()
             ACKMSG = mapper->getMappingMessages(msg.data.c_str());
             return ACKMSG;
         }
+        else if(msg.data == "requestMap"){
+            // 맵 데이터 요청 처리
+            return getMapAsJson();
+        }
         else{
             std::cout << "Unknown command: " << msg.data << std::endl;
             ACKMSG = "UNKNOWNCOMMAND";
@@ -179,4 +189,30 @@ std::string MainController::interpretMessage()
 void MainController::showMap()
 {
     mapper->showMap();
+}
+
+std::string MainController::getMapAsJson()
+{
+    if (!mapper->IsMappingDone()) {
+        return "NO_MAP";
+    }
+    
+    auto mapData = mapper->getMap();
+    if (mapData.empty()) {
+        return "NO_MAP";
+    }
+    
+    std::string json = "[";
+    for (size_t i = 0; i < mapData.size(); ++i) {
+        if (i > 0) json += ",";
+        json += "[";
+        for (size_t j = 0; j < mapData[i].size(); ++j) {
+            if (j > 0) json += ",";
+            json += std::to_string(mapData[i][j]);
+        }
+        json += "]";
+    }
+    json += "]";
+    
+    return json;
 }

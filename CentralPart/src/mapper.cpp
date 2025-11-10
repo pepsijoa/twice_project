@@ -118,7 +118,6 @@ void Mapper::createMap()
     
     map.clear();
     map.resize(mapHeight, std::vector<int>(mapWidth, 0));
-    map[0][0] = 1; 
     // locations에 있는 좌표들에 1 할당
     for(const auto& loc : locations) {
         int x = loc.second;
@@ -276,4 +275,9 @@ void Mapper::showMap()
 bool Mapper::IsMappingDone()
 {
     return doneMapping;
+}
+
+std::vector<std::vector<int>> Mapper::getMap() const
+{
+    return map;
 }
