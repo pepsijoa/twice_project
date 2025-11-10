@@ -258,15 +258,16 @@ bool Mapper::IsMappingDone()
 
 std::vector<std::vector<int>> Mapper::getMap() const
 {
-    std::vector<std::vector<int>> mapCopy = map;
+    return map;
+    // std::vector<std::vector<int>> mapCopy = map;
     
-    if (!mapCopy.empty() && 
-        currentLocation.first >= 0 && currentLocation.first < static_cast<int>(mapCopy.size()) &&
-        currentLocation.second >= 0 && currentLocation.second < static_cast<int>(mapCopy[0].size())) {
-        mapCopy[currentLocation.first][currentLocation.second] = 3;
-    }
+    // if (!mapCopy.empty() && 
+    //     currentLocation.first >= 0 && currentLocation.first < static_cast<int>(mapCopy.size()) &&
+    //     currentLocation.second >= 0 && currentLocation.second < static_cast<int>(mapCopy[0].size())) {
+    //     mapCopy[currentLocation.first][currentLocation.second] = 3;
+    // }
     
-    return mapCopy;
+    // return mapCopy;
 }
 
 // 실시간 맵 업데이트 함수

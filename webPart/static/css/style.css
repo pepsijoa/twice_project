@@ -631,6 +631,29 @@ h1 {
     color: white;
     box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
     animation: featureBlink 1.5s infinite alternate;
+    position: relative;
+    font-size: 10px;
+    flex-direction: column;
+    gap: 1px;
+}
+
+/* 특징점 번호 스타일 */
+.feature-number {
+    font-size: 8px;
+    font-weight: bold;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border-radius: 50%;
+    width: 12px;
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    line-height: 1;
+    border: 1px solid white;
 }
 
 .map-cell.current-position {
@@ -774,6 +797,14 @@ h1 {
         height: 20px;
         min-width: 20px;
         font-size: 10px;
+    }
+    
+    .feature-number {
+        font-size: 6px;
+        width: 10px;
+        height: 10px;
+        top: -1px;
+        right: -1px;
     }
     
     .map-legend {

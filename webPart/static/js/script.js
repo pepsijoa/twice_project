@@ -25,6 +25,16 @@ function displayMap(mapData) {
     const height = mapData.length;
     const width = mapData[0].length;
     
+    // 특징점 위치를 수집하여 왼쪽 위부터 오른쪽 아래 순서로 번호 매기기
+    const featurePositions = [];
+    for (let y = height - 1; y >= 0; y--) {  // 위에서 아래로
+        for (let x = 0; x < width; x++) {    // 왼쪽에서 오른쪽으로
+            if (mapData[y][x] === 2) {
+                featurePositions.push({x: x, y: y, displayY: height - 1 - y});
+            }
+        }
+    }
+    
     // CSS Grid 설정
     mapGrid.style.gridTemplateColumns = `repeat(${width}, 1fr)`;
     mapGrid.style.gridTemplateRows = `repeat(${height}, 1fr)`;
@@ -51,8 +61,15 @@ function displayMap(mapData) {
                 cell.title = `이동 경로 (${x}, ${height-1-y})`;
             } else if (value === 2) {
                 cell.classList.add('feature');
-                cell.textContent = '🔶';  // 특징점 아이콘
-                cell.title = `특징점/장애물 (${x}, ${height-1-y})`;
+                
+                // 특징점 번호 찾기 (화면 표시 기준)
+                const featureIndex = featurePositions.findIndex(pos => 
+                    pos.x === x && pos.displayY === (height - 1 - y)
+                );
+                const featureNumber = featureIndex + 1;
+                
+                cell.innerHTML = `🔶<span class="feature-number">${featureNumber}</span>`;  // 특징점 아이콘 + 번호
+                cell.title = `특징점 #${featureNumber} (${x}, ${height-1-y})`;
             } else if (value === 3) {
                 cell.classList.add('current-position');
                 cell.textContent = '🤖';  // 로봇 현재 위치
@@ -74,7 +91,7 @@ function displayMap(mapData) {
     // 맵 크기 정보 표시
     const mapInfo = document.getElementById('map-info');
     if (mapInfo) {
-        mapInfo.textContent = `맵 크기: ${width} × ${height}`;
+        mapInfo.textContent = `맵 크기: ${width} × ${height} | 특징점: ${featurePositions.length}개`;
     }
 }
 
@@ -110,7 +127,7 @@ function startMapUpdates() {
     // 즉시 한 번 실행
     fetchMapData();
     
-    mapUpdateInterval = setInterval(fetchMapData, 1000);
+    mapUpdateInterval = setInterval(fetchMapData, 500);  // 0.5초마다 업데이트
 }
 
 // 맵 업데이트 중지
