@@ -13,6 +13,7 @@ module mainController;
 
 import webController;
 import mapper;
+import moveController;
 
 //생성자
 MainController::MainController() : webCtrl(nullptr), mapper(nullptr), camCtrl(nullptr), running(false)
@@ -34,6 +35,19 @@ bool MainController::initWebController(const std::string& socket_path)
 {
     webCtrl = std::make_unique<WebController>(socket_path.c_str());
     return webCtrl->is_ready();
+}
+
+bool MainController::initMoveController(int serial_fd)
+{
+    if (serial_fd < 0) {
+        std::cerr << "MainController: MoveController 초기화 실패 (잘못된 serial_fd)" << std::endl;
+        return false;
+    }
+    
+    moveCtrl = std::make_unique<MoveController>(serial_fd);
+    
+    std::cout << "✅ MoveController 초기화 완료" << std::endl;
+    return true;
 }
 
 // 서버 스레드 시작
@@ -168,17 +182,25 @@ std::string MainController::interpretMessage()
         std::string ACKMSG = "";
         if(msg.data == "up" || msg.data == "down" || msg.data == "left" || msg.data == "right" || msg.data == "doneMapping"){
             // moveController에게 실제로 움직일 수 있는지 확인 받고 오기.
-            //아래에 있는 ACKMSG 파라미터는 done인지 아닌지 확인하고 오기 위함.
-            ACKMSG = mapper->getMappingMessages(msg.data.c_str());
-            if(ACKMSG == "DONEMAPPING"){
-                currentMode = Mode::NAVIGATING;
-                
-                return ACKMSG;
+            bool moveSuccess = moveCtrl.processCommand(msg.data);
+            if(moveSuccess) 
+            {
+                //아래에 있는 ACKMSG 파라미터는 done인지 아닌지 확인하고 오기 위함.
+                ACKMSG = mapper->getMappingMessages(msg.data.c_str());
+                if(ACKMSG == "DONEMAPPING"){
+                    currentMode = Mode::NAVIGATING;
+
+                    return ACKMSG;
+                }
+                else {
+                    // MOVE OK,
+                    currentMode = Mode::MAPPING;
+                    return ACKMSG;
+                }
             }
-            else {
-                // MOVE OK,
-                currentMode = Mode::MAPPING;
-                return ACKMSG;
+            else{
+                // MOVE FAIL, 추가
+                std::cout << "MoveController: 장애물 있음 [" << msg << "]" << std::endl;
             }
         }
         else if(msg.data == "featureShot"){
