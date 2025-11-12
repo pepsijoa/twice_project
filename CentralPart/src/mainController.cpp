@@ -36,6 +36,13 @@ bool MainController::initWebController(const std::string& socket_path)
     return webCtrl->is_ready();
 }
 
+
+bool MainController::initMoveController(int serial_fd, int baud_rate)
+{
+    moveCtrl = std::make_unique<MoveController>(serial_fd, baud_rate);
+    return moveCtrl->isRead();
+}
+
 // 서버 스레드 시작
 void MainController::startWebServerThread()
 {

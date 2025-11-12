@@ -17,6 +17,7 @@ target_sources(${PROJECT_NAME}
       src/mainController.cppm
       src/mapper.cppm
       src/camController.cppm
+      src/moveController.cppm
 )
 
 # 일반 소스 파일 추가 (*.cpp 파일)
@@ -27,4 +28,5 @@ target_sources(${PROJECT_NAME}
     src/mapper.cpp
     src/main.cpp
     src/camController.cpp
+    src/moveController.cpp
 )
