@@ -15,7 +15,6 @@ import mapper;
 import camController;
 import moveController;
 
-
 // 메시지 구조체
 export struct Message {
     int priority;           // 우선순위 (낮을수록 높은 우선순위)
@@ -41,7 +40,7 @@ private:
     std::unique_ptr<Mapper> mapper;
     std::unique_ptr<CamController> camCtrl;
     std::unique_ptr<MoveController> moveCtrl;
-    
+
     std::thread serverThread;
     bool running;
     
@@ -64,8 +63,8 @@ public:
     ~MainController();
     
     bool initWebController(const std::string& socket_path);
-    bool initMoveController(int serial_fd);
-    
+    bool initMoveController(int serial_fd, int baud_rate);
+
     // 서버 스레드 시작
     void startWebServerThread();
     

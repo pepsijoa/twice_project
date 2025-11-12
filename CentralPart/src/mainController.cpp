@@ -37,17 +37,11 @@ bool MainController::initWebController(const std::string& socket_path)
     return webCtrl->is_ready();
 }
 
-bool MainController::initMoveController(int serial_fd)
+
+bool MainController::initMoveController(int serial_fd, int baud_rate)
 {
-    if (serial_fd < 0) {
-        std::cerr << "MainController: MoveController 초기화 실패 (잘못된 serial_fd)" << std::endl;
-        return false;
-    }
-    
-    moveCtrl = std::make_unique<MoveController>(serial_fd);
-    
-    std::cout << "✅ MoveController 초기화 완료" << std::endl;
-    return true;
+    moveCtrl = std::make_unique<MoveController>(serial_fd, baud_rate);
+    return moveCtrl->isRead();
 }
 
 // 서버 스레드 시작
@@ -182,7 +176,7 @@ std::string MainController::interpretMessage()
         std::string ACKMSG = "";
         if(msg.data == "up" || msg.data == "down" || msg.data == "left" || msg.data == "right" || msg.data == "doneMapping"){
             // moveController에게 실제로 움직일 수 있는지 확인 받고 오기.
-            bool moveSuccess = moveCtrl.processCommand(msg.data);
+            bool moveSuccess = moveCtrl->processCommand(msg.data);
             if(moveSuccess) 
             {
                 //아래에 있는 ACKMSG 파라미터는 done인지 아닌지 확인하고 오기 위함.
@@ -200,7 +194,8 @@ std::string MainController::interpretMessage()
             }
             else{
                 // MOVE FAIL, 추가
-                std::cout << "MoveController: 장애물 있음 [" << msg << "]" << std::endl;
+                std::cout << "MoveController: 장애물 있음 [" << msg.data << "]" << std::endl;
+                return "MOVEFAIL";
             }
         }
         else if(msg.data == "featureShot"){
