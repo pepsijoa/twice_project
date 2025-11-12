@@ -120,54 +120,38 @@ void loop() {
 void prvSerialTask(void *pvParameters) {
   (void) pvParameters;
 
+  uint8_t rx_byte;
+  MotorCommand_t cmd_to_send = CMD_INVALID; 
+
   // C언어 스타일의 무한 루프
   for (;;) {
-    // 버퍼는 이 태스크 내에서만 사용 (static으로 선언)
-    static char command_buffer[20];
-    static int index = 0;
-
+    
     // 시리얼 포트에 읽을 데이터가 있는지 확인 (논블로킹)
     if (Serial.available() > 0) {
-      char c = Serial.read();
+      rx_byte = (uint8_t)Serial.read();
+      
+      uint8_t orientation = rx_byte & 0b00001111;
 
-      // 줄바꿈 문자(\n 또는 \r)를 받으면 명령 처리 시작
-      if (c == '\n' || c == '\r') {
-        if (index > 0) { // 버퍼에 무언가 쓰여있다면
-          command_buffer[index] = '\0'; // 문자열의 끝을 표시
-
-          MotorCommand_t cmd_to_send;
-
-          //--- 문자열을 enum으로 변환 ---
-          if (strcmp(command_buffer, "UP") == 0) {
-            cmd_to_send = CMD_UP;
-          } else if (strcmp(command_buffer, "DOWN") == 0) {
-            cmd_to_send = CMD_DOWN;
-          } else if (strcmp(command_buffer, "LEFT") == 0) {
-            cmd_to_send = CMD_LEFT;
-          } else if (strcmp(command_buffer, "RIGHT") == 0) {
-            cmd_to_send = CMD_RIGHT;
-          } else if (strcmp(command_buffer, "STOP") == 0) {
-            cmd_to_send = CMD_STOP;
-          } else {
-            cmd_to_send = CMD_INVALID;
-          }
-          
-          Serial.print("명령 수신: ");
-          Serial.println(command_buffer);
-
-          //--- 큐(메일박스)에 명령 전송 ---
-          xQueueOverwrite(xMotorQueue, &cmd_to_send);
-  
-          // 버퍼 인덱스 초기화
-          index = 0;
-        }
-      } 
-      // 일반 문자이고 버퍼가 꽉 차지 않았다면
-      else if (index < (sizeof(command_buffer) - 1)) {
-        command_buffer[index++] = c; // 버퍼에 문자 추가
+      switch(orientation) {
+        case 0x01:
+          cmd_to_send = CMD_RIGHT;
+          break;
+        case 0x02:
+          cmd_to_send = CMD_LEFT;
+          break;
+        case 0x04:
+          cmd_to_send = CMD_DOWN;
+          break;
+        case 0x08:
+          cmd_to_send = CMD_UP;
+          break;
       }
-    }
-    
+
+      Serial.print("Received (Byte): 0x");
+      Serial.println(rx_byte, HEX);
+
+      xQueueOverwrite(xMotorQueue, &cmd_to_send);
+
     // 이 태스크를 잠시(10ms) 재워서 다른 태스크(MotorTask)가 실행될 시간을 줌
     vTaskDelay(10 / portTICK_PERIOD_MS);
   }
@@ -221,7 +205,7 @@ void prvMotor_ESTOP(void *pvParameters) {
   long duration;
   int distance;
   MotorCommand_t estop_cmd = CMD_STOP; // E-STOP은 항상 STOP 명령만 보냄
-
+  
   // 100ms마다 이 태스크를 실행
   const TickType_t xFrequency = 100 / portTICK_PERIOD_MS;
 
