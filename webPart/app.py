@@ -3,9 +3,52 @@ import os
 import ssl
 import socket
 import time
+import threading
+import json
 
 app = Flask(__name__)
 SOCKET_PATH = "/tmp/flaskToCPP.sock"
+
+# 소켓 통신을 위한 스레드 락
+socket_lock = threading.Lock()
+
+# 안전한 소켓 통신 헬퍼 함수
+def safe_socket_communication(command, buffer_size=1024, timeout=5):
+    """
+    스레드 안전한 소켓 통신
+    
+    Args:
+        command (str): C++ 서버에 보낼 명령
+        buffer_size (int): 수신 버퍼 크기
+        timeout (float): 소켓 타임아웃 시간
+    
+    Returns:
+        tuple: (success, response_or_error)
+    """
+    with socket_lock:  # 동시 접근 방지
+        try:
+            # Context manager로 소켓 자동 정리
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.settimeout(timeout)  # 타임아웃 설정
+                client.connect(SOCKET_PATH)
+                client.send(command.encode('utf-8'))
+                
+                response = client.recv(buffer_size).decode('utf-8')
+                return True, response
+                
+        except socket.timeout:
+            return False, "소켓 타임아웃 (5초 초과)"
+        except ConnectionRefusedError:
+            return False, "C++ 서버가 실행되지 않았거나 연결을 거부했습니다"
+        except FileNotFoundError:
+            return False, f"소켓 파일({SOCKET_PATH})을 찾을 수 없습니다"
+        except OSError as e:
+            return False, f"소켓 연결 오류: {str(e)}"
+        except Exception as e:
+            return False, f"예상치 못한 오류: {str(e)}"
+        finally:
+            # 소켓 정리를 위한 잠시 대기
+            time.sleep(0.05)  # 50ms로 단축
 # 보안 헤더 추가
 @app.after_request
 def add_security_headers(response):
@@ -44,19 +87,24 @@ def control():
     data = request.get_json()
     direction = data.get('direction')
     
-    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    client.connect(SOCKET_PATH)
-    client.send(direction.encode('utf-8'))
-
-
-    response = client.recv(1024).decode('utf-8')
-
-    print(f"C++ 서버 응답: {response}")
+    success, response = safe_socket_communication(direction)
     
-    client.close()
-    time.sleep(0.1) 
-    
-    return jsonify({'status': 'success', 'direction': direction})
+    if success:
+        print(f"C++ 서버 응답: {response}")
+        
+        # MAPPINGDONE 응답 처리
+        if response == "MAPPINGDONE":
+            return jsonify({
+                'status': 'mapping_done', 
+                'direction': direction, 
+                'response': response,
+                'message': '현재 매핑은 모두 완료되었습니다.'
+            })
+        else:
+            return jsonify({'status': 'success', 'direction': direction, 'response': response})
+    else:
+        print(f"소켓 통신 실패: {response}")
+        return jsonify({'status': 'error', 'message': response})
 
 # 매핑 완료 라우트
 @app.route('/mapping-complete', methods=['POST'])
@@ -65,23 +113,97 @@ def mapping_complete():
     action = data.get('action')
     
     if action == 'doneMapping':
-        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        try:
-            client.connect(SOCKET_PATH)
-            client.send('doneMapping'.encode('utf-8'))
-            
-            response = client.recv(1024).decode('utf-8')
+        success, response = safe_socket_communication('doneMapping')
+        
+        if success:
             print(f"C++ 서버 응답 (매핑 완료): {response}")
-            
-            client.close()
-            time.sleep(0.1)
-            
             return jsonify({'status': 'success', 'action': 'doneMapping', 'response': response})
-        except Exception as e:
-            print(f"매핑 완료 신호 전송 실패: {e}")
-            return jsonify({'status': 'error', 'message': str(e)})
+        else:
+            print(f"매핑 완료 신호 전송 실패: {response}")
+            return jsonify({'status': 'error', 'message': response})
     else:
         return jsonify({'status': 'error', 'message': 'Invalid action'})
+
+# 리매핑 라우트
+@app.route('/remapping', methods=['POST'])
+def remapping():
+    success, response = safe_socket_communication('remapping')
+    
+    if success:
+        print(f"C++ 서버 응답 (리매핑): {response}")
+        if response == "REMAPPING_QUEUED":
+            return jsonify({'status': 'success', 'action': 'remapping', 'message': '리매핑이 요청되었습니다. 잠시 후 시작됩니다.'})
+        else:
+            return jsonify({'status': 'success', 'action': 'remapping', 'response': response})
+    else:
+        print(f"리매핑 신호 전송 실패: {response}")
+        return jsonify({'status': 'error', 'message': response})
+
+# 카메라 촬영 라우트
+@app.route('/camera', methods=['POST'])
+def camera_shot():
+    """카메라 촬영 요청 처리"""
+    try:
+        print("카메라 촬영 요청 시작")
+        success, response = safe_socket_communication('featureShot', timeout=10)
+        
+        if not success:
+            print(f"카메라 촬영 요청 실패: {response}")
+            return jsonify({
+                'status': 'error', 
+                'message': f'카메라 요청 전송 실패: {response}'
+            })
+        
+        print(f"카메라 응답 받음: '{response}'")
+        
+        # C++에서의 응답 처리
+        if response.strip() == "FEATURESHOT_OK":
+            print("카메라 촬영 성공")
+            return jsonify({
+                'status': 'success',
+                'message': '카메라 촬영 성공',
+                'result': 'FEATURESHOT_OK'
+            })
+        elif response.strip() == "FEATURESHOT_FAIL":
+            print("카메라 촬영 실패")
+            return jsonify({
+                'status': 'failed',
+                'message': '카메라 촬영 실패',
+                'result': 'FEATURESHOT_FAIL'
+            })
+        else:
+            print(f"예상치 못한 카메라 응답: '{response}'")
+            return jsonify({
+                'status': 'error',
+                'message': f'예상치 못한 응답: {response}'
+            })
+    
+    except Exception as e:
+        print(f"카메라 촬영 중 오류 발생: {str(e)}")
+        return jsonify({
+            'status': 'error', 
+            'message': f'카메라 촬영 중 오류: {str(e)}'
+        })
+
+# 맵 데이터 가져오기 라우트
+@app.route('/get-map', methods=['GET'])
+def get_map():
+    success, response = safe_socket_communication('requestMap', buffer_size=4096)
+    
+    if not success:
+        print(f"맵 데이터 요청 실패: {response}")
+        return jsonify({'status': 'error', 'message': response})
+    
+    # 응답이 유효한 JSON인지 확인
+    if response and response != "NO_MAP":
+        try:
+            map_data = json.loads(response)
+            return jsonify({'status': 'success', 'map': map_data})
+        except json.JSONDecodeError:
+            # JSON이 아닌 경우 기본 응답
+            return jsonify({'status': 'no_map', 'message': 'Map not ready'})
+    else:
+        return jsonify({'status': 'no_map', 'message': 'Map not available'})
 
 # 인증서 다운로드 라우트
 @app.route('/download-cert')

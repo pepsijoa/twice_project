@@ -198,6 +198,77 @@
             background: #c0392b;
         }
 
+        .map-btn {
+            background: #27ae60;
+            color: white;
+        }
+
+        .map-btn:hover {
+            background: #229954;
+        }
+
+        /* 맵 모달 스타일 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: none;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow: auto;
+            position: relative;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            position: absolute;
+            right: 20px;
+            top: 15px;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: #000;
+            text-decoration: none;
+        }
+
+        .map-container {
+            margin-top: 40px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            height: 70vh;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: auto;
+            padding: 20px;
+        }
+
+        .map-placeholder {
+            color: #666;
+            font-size: 1.2rem;
+        }
+
         .empty-state {
             background: rgba(255, 255, 255, 0.95);
             padding: 60px 20px;
@@ -272,6 +343,7 @@
                 </div>
                 <div class="item-actions">
                     <button class="action-btn edit-btn" onclick="editItem(1)">✏️ 수정</button>
+                    <button class="action-btn map-btn" onclick="showMap('센서 모듈', 'A-01')">🗺️ 위치</button>
                     <button class="action-btn delete-btn" onclick="deleteItem(1)">🗑️ 삭제</button>
                 </div>
             </div>
@@ -290,6 +362,7 @@
                 </div>
                 <div class="item-actions">
                     <button class="action-btn edit-btn" onclick="editItem(2)">✏️ 수정</button>
+                    <button class="action-btn map-btn" onclick="showMap('모터 드라이버', 'A-02')">🗺️ 위치</button>
                     <button class="action-btn delete-btn" onclick="deleteItem(2)">🗑️ 삭제</button>
                 </div>
             </div>
@@ -308,6 +381,7 @@
                 </div>
                 <div class="item-actions">
                     <button class="action-btn edit-btn" onclick="editItem(3)">✏️ 수정</button>
+                    <button class="action-btn map-btn" onclick="showMap('배터리 팩', 'B-01')">🗺️ 위치</button>
                     <button class="action-btn delete-btn" onclick="deleteItem(3)">🗑️ 삭제</button>
                 </div>
             </div>
@@ -317,6 +391,19 @@
         <div class="empty-state" style="display: none;" id="emptyState">
             <h2>재고가 없습니다</h2>
             <p>➕ 재고 추가 버튼을 눌러 새로운 재고를 추가하세요.</p>
+        </div>
+    </div>
+
+    <!-- 맵 모달 -->
+    <div id="mapModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeMapModal()">&times;</span>
+            <h2 id="modalTitle">재고 위치 정보</h2>
+            <div class="map-container">
+                <div id="mapDisplay" class="map-placeholder">
+                    맵을 불러오는 중...
+                </div>
+            </div>
         </div>
     </div>
 
@@ -361,6 +448,141 @@
                 alert(`재고 ID ${id} 삭제 기능은 DB 연동 후 구현될 예정입니다.`);
                 // TODO: DB에서 삭제 후 페이지 갱신
             }
+        }
+
+        // 맵 표시 함수
+        function showMap(itemName, location) {
+            const modal = document.getElementById('mapModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const mapDisplay = document.getElementById('mapDisplay');
+            
+            modalTitle.textContent = `${itemName} 위치 정보 (${location})`;
+            mapDisplay.innerHTML = '맵을 불러오는 중...';
+            
+            modal.style.display = 'block';
+            
+            // 맵 데이터 가져오기
+            fetchMapForLocation(location);
+        }
+
+        // 맵 모달 닫기
+        function closeMapModal() {
+            const modal = document.getElementById('mapModal');
+            modal.style.display = 'none';
+        }
+
+        // 모달 외부 클릭시 닫기
+        window.onclick = function(event) {
+            const modal = document.getElementById('mapModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // 특정 위치의 맵 데이터 가져오기
+        async function fetchMapForLocation(location) {
+            try {
+                const response = await fetch('/get-map');
+                const data = await response.json();
+                
+                console.log('받은 맵 데이터:', data); // 디버깅용 로그
+                
+                if (data && data.status === 'success' && data.map) {
+                    displayInventoryMap(data, location);
+                } else if (data && data.status === 'no_map') {
+                    document.getElementById('mapDisplay').innerHTML = 
+                        '<div style="color: orange;">⚠️ 맵이 아직 준비되지 않았습니다.</div>';
+                } else {
+                    console.error('맵 데이터 구조 오류:', data);
+                    document.getElementById('mapDisplay').innerHTML = 
+                        `<div style="color: red;">❌ 맵 데이터 구조가 올바르지 않습니다.<br>받은 데이터: ${JSON.stringify(data)}</div>`;
+                }
+            } catch (error) {
+                console.error('맵 데이터 로드 실패:', error);
+                document.getElementById('mapDisplay').innerHTML = 
+                    `<div style="color: red;">❌ 맵 데이터를 불러올 수 없습니다.<br>오류: ${error.message}</div>`;
+            }
+        }
+
+        // 재고 관리용 맵 표시 함수
+        function displayInventoryMap(mapData, targetLocation) {
+            const mapDisplay = document.getElementById('mapDisplay');
+            const mapArray = mapData.map;
+            
+            console.log('맵 배열:', mapArray); // 디버깅용
+            
+            if (!mapArray || !Array.isArray(mapArray) || mapArray.length === 0) {
+                mapDisplay.innerHTML = '<div style="color: red;">🗺️ 맵 데이터가 없습니다.</div>';
+                return;
+            }
+            
+            const height = mapArray.length;
+            const width = mapArray[0].length;
+            
+            // 특징점 위치를 수집하여 왼쪽 위부터 오른쪽 아래 순서로 번호 매기기
+            const featurePositions = [];
+            for (let y = height - 1; y >= 0; y--) {  // 위에서 아래로
+                for (let x = 0; x < width; x++) {    // 왼쪽에서 오른쪽으로
+                    if (mapArray[y][x] === 2) {
+                        featurePositions.push({x: x, y: y, displayY: height - 1 - y});
+                    }
+                }
+            }
+            
+            let mapHtml = `
+                <div style="
+                    display: grid;
+                    grid-template-columns: repeat(${width}, minmax(40px, 1fr));
+                    grid-template-rows: repeat(${height}, minmax(40px, 1fr));
+                    gap: 3px;
+                    justify-content: center;
+                    margin: 0;
+                    font-size: 32px;
+                    width: 100%;
+                    height: 100%;
+                    max-width: 90vw;
+                    max-height: 60vh;
+                ">
+            `;
+            
+            // 위에서 아래로 표시 (배열의 마지막 행부터 첫 번째 행 순서)
+            for (let y = height - 1; y >= 0; y--) {
+                for (let x = 0; x < width; x++) {
+                    const value = mapArray[y][x];
+                    let content = '';
+                    let style = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 28px; position: relative; min-width: 40px; min-height: 40px;';
+                    
+                    // 값에 따른 스타일 및 아이콘 설정
+                    if (value === 0) {
+                        content = '⬜';  // 빈 공간 아이콘
+                        style += ' background: #f8f9fa;';
+                    } else if (value === 1) {
+                        content = '🟢';  // 경로 아이콘
+                        style += ' background: #d4edda;';
+                    } else if (value === 2) {
+                        // 특징점 번호 찾기 (화면 표시 기준)
+                        const featureIndex = featurePositions.findIndex(pos => 
+                            pos.x === x && pos.displayY === (height - 1 - y)
+                        );
+                        const featureNumber = featureIndex + 1;
+                        
+                        content = `🔶<span style="position: absolute; top: -8px; right: -8px; background: white; border-radius: 50%; width: 24px; height: 24px; font-size: 16px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #333; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${featureNumber}</span>`;
+                        style += ' background: #fff3cd;';
+                    } else if (value === 3) {
+                        content = '🤖';  // 로봇 현재 위치
+                        style += ' background: #cce5ff;';
+                    } else {
+                        content = value;
+                        style += ' background: #f8f9fa;';
+                    }
+                    
+                    mapHtml += `<div style="${style}">${content}</div>`;
+                }
+            }
+            
+            mapHtml += '</div>';
+            
+            mapDisplay.innerHTML = mapHtml;
         }
     </script>
 </body>
