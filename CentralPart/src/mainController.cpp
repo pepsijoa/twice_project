@@ -13,10 +13,16 @@ module mainController;
 
 import webController;
 import mapper;
+import moveController;
 
 //생성자
-MainController::MainController() : webCtrl(nullptr), mapper(nullptr), running(false)
+MainController::MainController() : webCtrl(nullptr), mapper(nullptr), camCtrl(nullptr), running(false)
 {   
+    // Mapper 초기화
+    mapper = std::make_unique<Mapper>();
+    
+    // CamController 초기화
+    camCtrl = std::make_unique<CamController>(0);
 }
 
 //소멸자
@@ -29,6 +35,19 @@ bool MainController::initWebController(const std::string& socket_path)
 {
     webCtrl = std::make_unique<WebController>(socket_path.c_str());
     return webCtrl->is_ready();
+}
+
+bool MainController::initMoveController(int serial_fd)
+{
+    if (serial_fd < 0) {
+        std::cerr << "MainController: MoveController 초기화 실패 (잘못된 serial_fd)" << std::endl;
+        return false;
+    }
+    
+    moveCtrl = std::make_unique<MoveController>(serial_fd);
+    
+    std::cout << "✅ MoveController 초기화 완료" << std::endl;
+    return true;
 }
 
 // 서버 스레드 시작
@@ -77,9 +96,42 @@ void MainController::serverThreadFunction()
             std::string receivedData(buffer);
             pushMessage(1, receivedData);  // 우선순위 1로 설정
             
-            webCtrl->send_response("ACK");
-            std::cout << "메시지 수신 및 큐에 추가: " << receivedData << std::endl;
+
+            //TODO : message를 처리할 수 있는지 파악해야 함.
+            //가령 실제 움직일 수 없다고 moveController가 파악한 경우 해결 방법
+            if(receivedData == "up" || receivedData == "down" || receivedData == "left" 
+                || receivedData == "right"){
+                if(mapper->IsMappingDone()){
+                    webCtrl->send_response("MAPPINGDONE");
+                    continue;
+                }
+                else{
+                    // movecontroller 넣을 곳
+                    webCtrl->send_response("ACK");
+                    continue;
+                }   
+            }
+            else if (receivedData == "featureShot"){
+                // 임시로 항상 성공 응답 보내기 (카메라 기능이 완전히 구현될 때까지)
+                std::cout << "카메라 촬영 요청 받음 (임시 성공 응답)" << std::endl;
+                webCtrl->send_response("FEATURESHOT_OK");
+                continue;
+            }
+            else if(receivedData == "remapping")
+            {
+                webCtrl->send_response("REMAPPING_QUEUED");
+                continue;
+            }
+            else if(receivedData == "requestMap"){
+                // 맵 데이터를 JSON 형식으로 전송
+                std::string mapJson = getMapAsJson();
+                webCtrl->send_response(mapJson.c_str());
+                continue;
+            }
         }
+        
+        // 각 요청 처리 후 잠시 대기 (다음 연결을 위해)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
 
@@ -123,22 +175,80 @@ size_t MainController::getQueueSize()
     return messageQueue.size();
 }
 
-void MainController::interpretMessage()
+std::string MainController::interpretMessage()
 {
     Message msg;
     if(popMessage(msg, 5000)){
-        std::cout << " 우선순위 :" << msg.priority << std::endl;
-        std::cout << " 데이터 : " << msg.data << std::endl;
-        std::cout << " 남은 메시지 : " << getQueueSize() << std::endl;
-
+        std::string ACKMSG = "";
         if(msg.data == "up" || msg.data == "down" || msg.data == "left" || msg.data == "right" || msg.data == "doneMapping"){
-            mapper->getMappingMessages(msg.data.c_str());
+            // moveController에게 실제로 움직일 수 있는지 확인 받고 오기.
+            bool moveSuccess = moveCtrl.processCommand(msg.data);
+            if(moveSuccess) 
+            {
+                //아래에 있는 ACKMSG 파라미터는 done인지 아닌지 확인하고 오기 위함.
+                ACKMSG = mapper->getMappingMessages(msg.data.c_str());
+                if(ACKMSG == "DONEMAPPING"){
+                    currentMode = Mode::NAVIGATING;
+
+                    return ACKMSG;
+                }
+                else {
+                    // MOVE OK,
+                    currentMode = Mode::MAPPING;
+                    return ACKMSG;
+                }
+            }
+            else{
+                // MOVE FAIL, 추가
+                std::cout << "MoveController: 장애물 있음 [" << msg << "]" << std::endl;
+            }
+        }
+        else if(msg.data == "featureShot"){
+            // CameraController 통해 사진 받아서 저장하는 로직 처리하기.
+            ACKMSG = mapper->getMappingMessages(msg.data.c_str());
+            return ACKMSG;
+        }
+        else if(msg.data == "remapping"){
+            
+            mapper = std::make_unique<Mapper>();
+            
+            currentMode = Mode::MAPPING;
+            
+            return "REMAPPING_STARTED";
+        }
+        else if(msg.data == "requestMap"){
+            // 맵 데이터 요청 처리
+            return getMapAsJson();
         }
         else{
             std::cout << "Unknown command: " << msg.data << std::endl;
-        }
+            ACKMSG = "UNKNOWNCOMMAND";
+            return ACKMSG;
+        }        
     }
     else{
-        std::cout << "." << std::flush;
+        return "NOMESSAGE";
     }
+}
+
+std::string MainController::getMapAsJson()
+{
+    auto mapData = mapper->getMap();
+    if (mapData.empty()) {
+        return "NO_MAP";
+    }
+    
+    std::string json = "[";
+    for (size_t i = 0; i < mapData.size(); ++i) {
+        if (i > 0) json += ",";
+        json += "[";
+        for (size_t j = 0; j < mapData[i].size(); ++j) {
+            if (j > 0) json += ",";
+            json += std::to_string(mapData[i][j]);
+        }
+        json += "]";
+    }
+    json += "]";
+    
+    return json;
 }

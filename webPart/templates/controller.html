@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -21,6 +21,34 @@
 <body>
     <div class="container">
         <h1>방향 컨트롤러</h1>
+        
+        <!-- 맵 표시 영역 -->
+        <div class="map-container">
+            <h2>🗺️ 실시간 맵</h2>
+            <div id="map-info" class="map-status">맵 로딩 중...</div>
+            <div class="map-grid" id="map-grid">
+                <!-- 맵 셀들이 동적으로 생성됩니다 -->
+            </div>
+            <div class="map-legend">
+                <div class="legend-item">
+                    <div class="legend-color empty"></div>
+                    <span>⬜ 미지 영역 (0)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color path"></div>
+                    <span>🟢 이동 가능 (1)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color feature"></div>
+                    <span>🔶 재고 위치 (2)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color current"></div>
+                    <span>🤖 현재 위치 (3)</span>
+                </div>
+            </div>
+        </div>
+        
         <div class="controller">
             <!-- 위쪽 버튼 -->
             <div class="button-row">
@@ -37,7 +65,10 @@
                     <span class="text">왼쪽</span>
                 </button>
                 
-                <div class="center-circle"></div>
+                <!-- 카메라 버튼 (중앙) -->
+                <button class="camera-btn center-camera" id="camera-btn">
+                    <span class="camera-icon">📸</span>
+                </button>
                 
                 <button class="direction-btn" data-direction="right" id="btn-right">
                     <span class="arrow">➡️</span>
@@ -54,9 +85,20 @@
             </div>
         </div>
         
-        <!-- 상태 표시 영역 -->
-        <div class="status">
-            <p id="status-text">버튼을 클릭하세요</p>
+        <!-- 매핑 버튼 -->
+        <div class="mapping-button-container">
+            <button class="mapping-btn" id="mapping-btn" data-state="ready">
+                <span class="mapping-icon">🗺️</span>
+                <span class="mapping-text">매핑</span>
+            </button>
+        </div>
+        
+        <!-- 리매핑 버튼 -->
+        <div class="remapping-button-container">
+            <button class="remapping-btn" id="remapping-btn">
+                <span class="remapping-icon">🔄</span>
+                <span class="remapping-text">새로 매핑</span>
+            </button>
         </div>
         
         <!-- 홈 버튼 -->
@@ -65,6 +107,25 @@
                 <span class="home-icon">🏠</span>
                 <span class="home-text">홈으로</span>
             </a>
+        </div>
+    </div>
+    
+    <!-- 매핑 완료 팝업 -->
+    <div id="mapping-done-popup" class="popup-overlay" style="display: none;">
+        <div class="popup-container">
+            <div class="popup-header">
+                <h3>🗺️ 매핑 완료</h3>
+            </div>
+            <div class="popup-content">
+                <p>현재 매핑은 모두 완료되었습니다.</p>
+                <p>더 이상 이동할 수 없습니다.</p>
+            </div>
+            <div class="popup-footer">
+                <button id="close-mapping-popup" class="popup-close-btn">
+                    <span class="close-icon">✓</span>
+                    <span class="close-text">확인</span>
+                </button>
+            </div>
         </div>
     </div>
     

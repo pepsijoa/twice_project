@@ -1,8 +1,10 @@
 import webController;
 import mainController;
+import moveController;
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <string>
 
 int main()
 {
@@ -17,12 +19,17 @@ int main()
     // 웹 서버를 별도 스레드에서 시작
     mainCtrl.startWebServerThread();
 
+    //get msg from web controller
+    //send msg to arudino controller (move controller)
     while(true) {
-        mainCtrl.interpretMessage();
+        std::string interpretAck = mainCtrl.interpretMessage();
+        
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     
     mainCtrl.stopWebServer();
+
+    MoveController moveCtrl;
     
     return 0;
 }
