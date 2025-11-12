@@ -1,6 +1,7 @@
 import webController;
 import mainController;
 import moveController;
+
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -18,7 +19,7 @@ int main()
     
     // 웹 서버를 별도 스레드에서 시작
     mainCtrl.startWebServerThread();
-
+    mainCtrl.initMoveController(1234, 9600);
     //get msg from web controller
     //send msg to arudino controller (move controller)
     while(true) {
@@ -28,8 +29,6 @@ int main()
     }
     
     mainCtrl.stopWebServer();
-
-    MoveController moveCtrl;
     
     return 0;
 }
