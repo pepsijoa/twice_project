@@ -23,6 +23,9 @@
 //--- 2. Queue 핸들 정의 ---
 QueueHandle_t xMotorQueue;
 
+TaskHandle_t Motor_Control;
+TaskHandle_t Motor_ESTOP;
+
 //--- 3. Queue로 보낼 데이터 타입 정의 ---
 typedef enum {
   CMD_STOP,
@@ -33,13 +36,14 @@ typedef enum {
   CMD_INVALID
 } MotorCommand_t; // MotorCommand_t 라는 새로운 타입을 만듦
 
-// (include 및 define 밑에 추가)
+volatile MotorCommand_t g_currentMotorState = CMD_STOP;
 
 /**
  * @brief MotorCommand_t enum 값을 문자열로 변환하는 헬퍼 함수
  * @param cmd 명령어 enum 값
  * @return const char* (문자열 포인터)
  */
+
 const char* getCommandString(MotorCommand_t cmd) {
   switch (cmd) {
     case CMD_STOP:   return "STOP";
@@ -73,7 +77,7 @@ void setup() {
   //--- 2. 태스크 생성 ---
   xTaskCreate(
     prvSerialTask,    // 태스크 함수 포인터
-    "SerialTask",     // 태스크 이름
+    "SerialTask & RX",     // 태스크 이름
     128,              // 스택 크기 (word 단위)
     NULL,             // 태스크 파라미터
     1,                // 우선순위 (낮음)
@@ -85,15 +89,15 @@ void setup() {
     128,              // 스택 크기
     NULL,             // 태스크 파라미터
     2,                // 우선순위 (높음)
-    NULL);  // 태스크 핸들
+    &Motor_Control);  // 태스크 핸들
   
   xTaskCreate(
     prvMotor_ESTOP,
-    "US_Sensor",
+    "Sensor & TX",
     128,
     NULL,
     3,
-    NULL);
+    &Motor_Task);
   
   vTaskStartScheduler();
 }
@@ -149,6 +153,8 @@ void prvMotorTask(void *pvParameters) {
     // 큐에 데이터가 들어오면 이 태스크는 즉시 'Ready' 상태가 됨
     if (xQueueReceive(xMotorQueue, &received_cmd, portMAX_DELAY) == pdPASS) {
       
+      g_currentMotorState = received_cmd;
+
       Serial.println(getCommandString(received_cmd)); // 헬퍼 함수 사용
       switch (received_cmd) {
         case CMD_UP:
@@ -190,6 +196,8 @@ void prvMotor_ESTOP(void *pvParameters) {
   
   const TickType_t xFrequency = 100 / portTICK_PERIOD_MS;
 
+  uint8_t tx_byte;
+
   for (;;) {
     digitalWrite(TRIG_PIN, LOW);
     delayMicroseconds(2);
@@ -202,12 +210,20 @@ void prvMotor_ESTOP(void *pvParameters) {
     distance = duration / 58;
 
     if (distance > 0 && distance < STOP_DISTANCE_CM) {
-      
-      // 위험!!
       // Serial.println("!!! E-STOP TRIGGERED !!!"); // (디버깅용)
-      
       xQueueOverwrite(xMotorQueue, &estop_cmd);
     }
+
+    if (distance > 0 && distance < STOP_DISTANCE_CM){
+      tx_byte = 0b0010;
+    }
+    else if(g_currentMotorState == CMD_STOP){
+      tx_byte = 0b0100; 
+    }
+    else {
+      tx_byte = 0b0001; 
+    }
+    serial.write(tx_byte);
     vTaskDelay(xFrequency);
   }
 }
