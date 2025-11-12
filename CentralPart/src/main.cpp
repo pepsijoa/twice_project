@@ -1,5 +1,6 @@
 import webController;
 import mainController;
+import moveController;
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -27,6 +28,8 @@ int main()
     }
     
     mainCtrl.stopWebServer();
+
+    MoveController moveCtrl;
     
     return 0;
 }
