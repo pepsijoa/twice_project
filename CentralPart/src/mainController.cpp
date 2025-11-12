@@ -167,7 +167,7 @@ std::string MainController::interpretMessage()
     if(popMessage(msg, 5000)){
         std::string ACKMSG = "";
         if(msg.data == "up" || msg.data == "down" || msg.data == "left" || msg.data == "right" || msg.data == "doneMapping"){
-            // moveController에게 실제로 움직일 수 있는지 확인 받고 오기.
+            // moveController에게 실제로 움직일 수 있는지 확인 받고 오기           
             //아래에 있는 ACKMSG 파라미터는 done인지 아닌지 확인하고 오기 위함.
             ACKMSG = mapper->getMappingMessages(msg.data.c_str());
             if(ACKMSG == "DONEMAPPING"){
