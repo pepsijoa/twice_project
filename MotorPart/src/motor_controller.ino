@@ -9,12 +9,6 @@
 #include <Arduino_FreeRTOS.h>
 #include <queue.h> // Queue API 헤더
 
-//--- 1. 하드웨어/핀 정의 ---
-// (모터 핀들을 여기에 정의하세요)
-// #define MOTOR_A_IN1 9
-// #define MOTOR_A_IN2 10
-// ...
-
 #define MOTOR_A_IN1 9
 #define MOTOR_A_IN2 10
 
@@ -57,13 +51,9 @@ const char* getCommandString(MotorCommand_t cmd) {
   }
 }
 
-//==================================================
-// setup() : C언어의 main() 함수 역할
-//==================================================
 void setup() {
   Serial.begin(115200);
-  while (!Serial) { ; } // 시리얼 포트 대기
-
+  while (!Serial) { ; } 
   pinMode(MOTOR_A_IN1, OUTPUT);
   pinMode(MOTOR_A_IN2, OUTPUT);
   pinMode(MOTOR_B_IN1, OUTPUT);
@@ -105,17 +95,10 @@ void setup() {
     3,
     NULL);
   
-  //--- 3. 스케줄러 시작 ---
-  // 이 시점부터 setup()은 끝나고 제어권은 RTOS로 넘어감
   vTaskStartScheduler();
 }
 
-//==================================================
-// loop() : 절대로 실행되지 않음
-//==================================================
-void loop() {
-  // 비워둠
-}
+void loop() {}
 
 void prvSerialTask(void *pvParameters) {
   (void) pvParameters;
@@ -123,7 +106,6 @@ void prvSerialTask(void *pvParameters) {
   uint8_t rx_byte;
   MotorCommand_t cmd_to_send = CMD_INVALID; 
 
-  // C언어 스타일의 무한 루프
   for (;;) {
     
     // 시리얼 포트에 읽을 데이터가 있는지 확인 (논블로킹)
@@ -206,30 +188,19 @@ void prvMotor_ESTOP(void *pvParameters) {
   int distance;
   MotorCommand_t estop_cmd = CMD_STOP; // E-STOP은 항상 STOP 명령만 보냄
   
-  // 100ms마다 이 태스크를 실행
   const TickType_t xFrequency = 100 / portTICK_PERIOD_MS;
 
-  // C언어 스타일의 무한 루프
   for (;;) {
-    // --- 1. Python 코드의 초음파 트리거 부분 ---
     digitalWrite(TRIG_PIN, LOW);
     delayMicroseconds(2);
     digitalWrite(TRIG_PIN, HIGH);
-    delayMicroseconds(10); // 10us 펄스
+    delayMicroseconds(10); 
     digitalWrite(TRIG_PIN, LOW);
 
-    // --- 2. Echo 수신 (pulseIn 사용) ---
-    // ECHO 핀이 HIGH가 될 때까지 기다렸다가, 
-    // LOW가 될 때까지의 시간을 (us) 측정
-    // 30000us (30ms) 타임아웃: 너무 멀리 있거나 장애물이 없으면 영원히 기다리지 않음
     duration = pulseIn(ECHO_PIN, HIGH, 30000);
 
-    // --- 3. 거리 계산 (cm) ---
-    // (duration / 2) * 0.0343 (소리 속도)  ==> duration / 58.3
     distance = duration / 58;
 
-    // --- 4. 위험 감지 및 명령 전송 ---
-    // (distance > 0 은 pulseIn이 타임아웃되지 않았다는 의미)
     if (distance > 0 && distance < STOP_DISTANCE_CM) {
       
       // 위험!!
