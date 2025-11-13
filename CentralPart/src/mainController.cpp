@@ -195,6 +195,7 @@ std::string MainController::interpretMessage()
             else{
                 // MOVE FAIL, 추가
                 std::cout << "MoveController: 장애물 있음 [" << msg.data << "]" << std::endl;
+                std::cout << "DELETE ME";
                 return "MOVEFAIL";
             }
         }
