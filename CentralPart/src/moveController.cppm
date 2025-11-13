@@ -3,6 +3,7 @@ module;
 #include <unistd.h>
 #include <string.h> 
 #include <iostream>
+#include <cstdint.h>
 
 export module moveController;
   
@@ -10,17 +11,20 @@ export module moveController;
 export class MoveController {
     public:
         // 생성자
-        MoveController(int serial_fd, int baud_rate);
+        MoveController();
 
         // 소멸자
         ~MoveController();
-        bool isRead();
+        bool isReady();
         bool processCommand(const std::string& msg);
 
+        bool openPort(const std::string& port_name, int baud_rate);
+        void closePort();
+
     private:
-        char sendCommandToArduino(char cmd);
-        int serial_fd = -1;      // 아두이노와 연결된 시리얼 포트의 파일 디스크립터
-        int baud_rate = 9600;      // 통신 속도
+        char sendCommandToArduino(uint8_t cmd);
+        int serial_fd;      // 아두이노와 연결된 시리얼 포트의 파일 디스크립터
+        int baud_rate;      // 통신 속도
 };
 
 

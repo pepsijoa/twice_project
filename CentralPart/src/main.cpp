@@ -19,13 +19,21 @@ int main()
     
     // 웹 서버를 별도 스레드에서 시작
     mainCtrl.startWebServerThread();
-    mainCtrl.initMoveController(1234, 9600);
+
+    const std::string ARDUINO_PORT = "/dev/ttyACM0";
+    const int ARDUINO_BAUD = 115200;
+    if (!mainCtrl.initMoveController(ARDUINO_PORT, ARDUINO_BAUD)) {
+        std::cerr << "Main: MoveController 초기화 실패!" << std::endl;
+        return -1;
+    }
+
+    
     //get msg from web controller
     //send msg to arudino controller (move controller)
     while(true) {
         std::string interpretAck = mainCtrl.interpretMessage();
         
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
     }
     
     mainCtrl.stopWebServer();

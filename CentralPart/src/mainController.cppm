@@ -63,7 +63,7 @@ public:
     ~MainController();
     
     bool initWebController(const std::string& socket_path);
-    bool initMoveController(int serial_fd, int baud_rate);
+    bool initMoveController(const std::string& port_name, int baud_rate);
 
     // 서버 스레드 시작
     void startWebServerThread();

@@ -38,10 +38,14 @@ bool MainController::initWebController(const std::string& socket_path)
 }
 
 
-bool MainController::initMoveController(int serial_fd, int baud_rate)
+bool MainController::initMoveController(const std::string& port_name, int baud_rate)
 {
-    moveCtrl = std::make_unique<MoveController>(serial_fd, baud_rate);
-    return moveCtrl->isRead();
+    if (!moveCtrl->openPort(port_name, baud_rate)) {
+        std::cerr << "MainController: MoveController 포트 열기 실패" << std::endl;
+        return false;
+    }
+    
+    return moveCtrl->isReady();
 }
 
 // 서버 스레드 시작
