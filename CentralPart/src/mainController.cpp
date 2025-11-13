@@ -176,7 +176,8 @@ std::string MainController::interpretMessage()
         std::string ACKMSG = "";
         if(msg.data == "up" || msg.data == "down" || msg.data == "left" || msg.data == "right" || msg.data == "doneMapping"){
             // moveController에게 실제로 움직일 수 있는지 확인 받고 오기.
-            bool moveSuccess = moveCtrl->processCommand(msg.data);
+            bool moveSuccess = true;
+            //bool moveSuccess = moveCtrl->processCommand(msg.data);
             if(moveSuccess) 
             {
                 //아래에 있는 ACKMSG 파라미터는 done인지 아닌지 확인하고 오기 위함.
