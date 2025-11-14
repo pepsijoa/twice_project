@@ -15,6 +15,8 @@
 #define MOTOR_B_IN1 11
 #define MOTOR_B_IN2 12 
 
+#define ENABLE_A 3
+#define ENABLE_B 5
 // 초음파 센서 
 #define TRIG_PIN 7  
 #define ECHO_PIN 8
@@ -57,12 +59,15 @@ const char* getCommandString(MotorCommand_t cmd) {
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial) { ; } 
+  
   pinMode(MOTOR_A_IN1, OUTPUT);
   pinMode(MOTOR_A_IN2, OUTPUT);
   pinMode(MOTOR_B_IN1, OUTPUT);
   pinMode(MOTOR_B_IN2, OUTPUT);
 
+  pinMode(ENABLE_A, OUTPUT);
+  pinMode(ENABLE_B, OUTPUT);
+  pinMode(13, OUTPUT);
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
@@ -97,7 +102,7 @@ void setup() {
     128,
     NULL,
     3,
-    &Motor_Task);
+    &Motor_ESTOP);
   
   vTaskStartScheduler();
 }
@@ -111,7 +116,8 @@ void prvSerialTask(void *pvParameters) {
   MotorCommand_t cmd_to_send = CMD_INVALID; 
 
   for (;;) {
-    
+    digitalWrite(13, !digitalRead(13)); // 상태 반전 (Toggle)
+
     // 시리얼 포트에 읽을 데이터가 있는지 확인 (논블로킹)
     if (Serial.available() > 0) {
       rx_byte = (uint8_t)Serial.read();
@@ -138,15 +144,16 @@ void prvSerialTask(void *pvParameters) {
 
       xQueueOverwrite(xMotorQueue, &cmd_to_send);
 
+    }
     // 이 태스크를 잠시(10ms) 재워서 다른 태스크(MotorTask)가 실행될 시간을 줌
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(100 / portTICK_PERIOD_MS);
   }
 }
 
 void prvMotorTask(void *pvParameters) {
   (void) pvParameters;
   MotorCommand_t received_cmd;
-
+  
   // C언어 스타일의 무한 루프
   for (;;) {
     //--- 큐에서 명령이 올 때까지 무한정 대기 (Blocked 상태) ---
@@ -205,7 +212,7 @@ void prvMotor_ESTOP(void *pvParameters) {
     delayMicroseconds(10); 
     digitalWrite(TRIG_PIN, LOW);
 
-    duration = pulseIn(ECHO_PIN, HIGH, 30000);
+    duration = pulseIn(ECHO_PIN, HIGH, 5000);
 
     distance = duration / 58;
 
@@ -215,18 +222,24 @@ void prvMotor_ESTOP(void *pvParameters) {
     }
 
     if (distance > 0 && distance < STOP_DISTANCE_CM){
-      tx_byte = 0b0010;
+      tx_byte = 0b00000010;
     }
     else if(g_currentMotorState == CMD_STOP){
-      tx_byte = 0b0100; 
+      tx_byte = 0b00000100; 
     }
     else {
-      tx_byte = 0b0001; 
+      tx_byte = 0b00000001; 
     }
-    serial.write(tx_byte);
+    Serial.write(tx_byte);
     vTaskDelay(xFrequency);
   }
 }
+
+void motor_speed(int spd)  
+{  
+  analogWrite(ENABLE_A,spd);  
+  analogWrite(ENABLE_B,spd);  
+}  
 
 void Motor_UP() {
   digitalWrite(MOTOR_A_IN1, HIGH);
@@ -234,6 +247,7 @@ void Motor_UP() {
 
   digitalWrite(MOTOR_B_IN1, HIGH);
   digitalWrite(MOTOR_B_IN2, LOW);
+  motor_speed(100);
 }
 
 void Motor_STOP() {
@@ -242,6 +256,7 @@ void Motor_STOP() {
 
   digitalWrite(MOTOR_B_IN1, LOW);
   digitalWrite(MOTOR_B_IN2, LOW);
+  motor_speed(150);
 }
 
 void Motor_LEFT() {
@@ -250,6 +265,7 @@ void Motor_LEFT() {
 
   digitalWrite(MOTOR_B_IN1, LOW);
   digitalWrite(MOTOR_B_IN2, HIGH);
+  motor_speed(150);
 }
 
 void Motor_RIGHT() {
@@ -258,6 +274,7 @@ void Motor_RIGHT() {
 
   digitalWrite(MOTOR_B_IN1, HIGH);
   digitalWrite(MOTOR_B_IN2, LOW);
+  motor_speed(150);
 }
 
 void Motor_DOWN() {
@@ -266,4 +283,8 @@ void Motor_DOWN() {
 
   digitalWrite(MOTOR_B_IN1, LOW);
   digitalWrite(MOTOR_B_IN2, HIGH);
+  motor_speed(150);
 }
+
+
+
