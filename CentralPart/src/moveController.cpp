@@ -3,7 +3,7 @@ module;
 #include <iostream>
 #include <unistd.h> // C++에서 read(), write()를 사용하기 위함
 #include <string.h> // C++에서 strncmp()를 사용하기 위함
-#include <cstdint.h>
+#include <cstdint>
 #include <termios.h>
 #include <fcntl.h>
 
@@ -12,6 +12,8 @@ module moveController;
 // 생성자
 MoveController::MoveController() 
     : serial_fd(-1)
+{
+}
 
 // 소멸자
 MoveController::~MoveController() {
@@ -130,22 +132,23 @@ char MoveController::sendCommandToArduino(uint8_t cmd) {
         return 'E'; // Error
     }
 
-    uint8_t response_auduino;
-    ssize_t num_bytes = read(serial_fd, &response_auduino, 1);
-
-    if (num_bytes == 1) {
-
-        if (response_auduino == 0b00000001) {
-            return 'Y';
-        } else if (response_auduino == 0b00000010) {
-            return 'N';
-        } else {
-            std::cerr << "MoveController: 아두이노로부터 알 수 없는 응답: " << std::endl;
-            return 'E';
-        }
-    } else {
-        // 읽기 실패
-        std::cerr << "MoveController: 아두이노로부터 읽기 실패" << std::endl;
-        return 'E';
+    // y = 0x79 , 0b01111001
+    // n = 0x6E , 0b01101110
+    uint8_t response_auduino = 0b00000000;
+    for(int i =0; i<10; i++) { 
+        int num_bytes = read(serial_fd, &response_auduino, 1);
+        if(num_bytes != 1) continue;
+        if(response_auduino == 0b01111001 || response_auduino == 0b01101110) break;
+        std::cout << "arduino : " << (int)response_auduino << std::endl;
     }
+    if(response_auduino == 0b01111001)
+    {
+        return 'Y'; // YES
+    }
+    else if(response_auduino == 0b01101110)
+    {
+        return 'N'; // NO
+    }
+    return 'E'; // Error if no valid response received within attempts
+
 }

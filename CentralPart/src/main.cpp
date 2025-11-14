@@ -22,12 +22,12 @@ int main()
 
     const std::string ARDUINO_PORT = "/dev/ttyACM0";
     const int ARDUINO_BAUD = 115200;
-    if (!mainCtrl.initMoveController(ARDUINO_PORT, ARDUINO_BAUD)) {
-        std::cerr << "Main: MoveController 초기화 실패!" << std::endl;
-        return -1;
+    while(!mainCtrl.initMoveController(ARDUINO_PORT, ARDUINO_BAUD))
+    {
+        std::cerr << "Main: MoveController 초기화 재시도..." << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 
-    
     //get msg from web controller
     //send msg to arudino controller (move controller)
     while(true) {

@@ -39,6 +39,7 @@ typedef enum {
 } MotorCommand_t; // MotorCommand_t 라는 새로운 타입을 만듦
 
 volatile MotorCommand_t g_currentMotorState = CMD_STOP;
+volatile bool g_isObstacleDetected = false; // E-STOP 상태 플래그
 
 /**
  * @brief MotorCommand_t enum 값을 문자열로 변환하는 헬퍼 함수
@@ -67,15 +68,16 @@ void setup() {
 
   pinMode(ENABLE_A, OUTPUT);
   pinMode(ENABLE_B, OUTPUT);
-  pinMode(13, OUTPUT);
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
+  pinMode(13, OUTPUT);
+  digitalWrite(13, LOW);
 
   //--- 1. 큐 생성 ---
   xMotorQueue = xQueueCreate(1, sizeof(MotorCommand_t));
 
   if (xMotorQueue == NULL) {
-    Serial.println("큐 생성 실패!");
+    //Serial.println("큐 생성 실패!");
     while(1); // 시스템 정지
   }
 
@@ -116,8 +118,6 @@ void prvSerialTask(void *pvParameters) {
   MotorCommand_t cmd_to_send = CMD_INVALID; 
 
   for (;;) {
-    digitalWrite(13, !digitalRead(13)); // 상태 반전 (Toggle)
-
     // 시리얼 포트에 읽을 데이터가 있는지 확인 (논블로킹)
     if (Serial.available() > 0) {
       rx_byte = (uint8_t)Serial.read();
@@ -139,13 +139,18 @@ void prvSerialTask(void *pvParameters) {
           break;
       }
 
-      Serial.print("Received (Byte): 0x");
-      Serial.println(rx_byte, HEX);
-
       xQueueOverwrite(xMotorQueue, &cmd_to_send);
-
+      
+      // 명령 수신 직후 즉시 응답 전송
+      uint8_t response_byte;
+      if (g_isObstacleDetected) {
+        response_byte = 0b01101110; // 'n' - 장애물 감지됨
+      } else {
+        response_byte = 0b01111001; // 'y' - 정상
+      }
+      Serial.write(response_byte);
     }
-    // 이 태스크를 잠시(10ms) 재워서 다른 태스크(MotorTask)가 실행될 시간을 줌
+    // 이 태스크를 잠시(100ms) 재워서 다른 태스크(MotorTask)가 실행될 시간을 줌
     vTaskDelay(100 / portTICK_PERIOD_MS);
   }
 }
@@ -160,33 +165,25 @@ void prvMotorTask(void *pvParameters) {
     // 큐에 데이터가 들어오면 이 태스크는 즉시 'Ready' 상태가 됨
     if (xQueueReceive(xMotorQueue, &received_cmd, portMAX_DELAY) == pdPASS) {
       
-      g_currentMotorState = received_cmd;
-
-      Serial.println(getCommandString(received_cmd)); // 헬퍼 함수 사용
+      //Serial.println(getCommandString(received_cmd)); // 헬퍼 함수 사용
       switch (received_cmd) {
         case CMD_UP:
           Motor_UP();
-          Serial.println("===> 모터: 위로 이동");
           break;
         case CMD_DOWN:
           Motor_DOWN();
-          Serial.println("===> 모터: 아래로 이동");
           break;
         case CMD_LEFT:
           Motor_LEFT();
-          Serial.println("===> 모터: 왼쪽으로 이동");
           break;
         case CMD_RIGHT:
           Motor_RIGHT();
-          Serial.println("===> 모터: 오른쪽으로 이동");
           break;
         case CMD_STOP:
           Motor_STOP();
-          Serial.println("===> 모터: 정지");
           break;
         case CMD_INVALID:
         default:
-          Serial.println("===> Error");
           // 추후 protocol 작성 후 에러 값 표출 
           break;
       }
@@ -198,12 +195,12 @@ void prvMotor_ESTOP(void *pvParameters) {
   (void) pvParameters;
 
   long duration;
-  int distance;
+  int distance =0;
   MotorCommand_t estop_cmd = CMD_STOP; // E-STOP은 항상 STOP 명령만 보냄
   
   const TickType_t xFrequency = 100 / portTICK_PERIOD_MS;
 
-  uint8_t tx_byte;
+  uint8_t tx_byte = 0b00000001;
 
   for (;;) {
     digitalWrite(TRIG_PIN, LOW);
@@ -218,19 +215,17 @@ void prvMotor_ESTOP(void *pvParameters) {
 
     if (distance > 0 && distance < STOP_DISTANCE_CM) {
       // Serial.println("!!! E-STOP TRIGGERED !!!"); // (디버깅용)
+      g_isObstacleDetected = true;  // 전역 플래그 설정
       xQueueOverwrite(xMotorQueue, &estop_cmd);
-    }
-
-    if (distance > 0 && distance < STOP_DISTANCE_CM){
-      tx_byte = 0b00000010;
-    }
-    else if(g_currentMotorState == CMD_STOP){
-      tx_byte = 0b00000100; 
+      tx_byte = 0b01101110;  // 'n'
     }
     else {
-      tx_byte = 0b00000001; 
+      g_isObstacleDetected = false;  // 전역 플래그 해제
+      tx_byte = 0b01111001;  // 'y'
     }
-    Serial.write(tx_byte);
+    // prvMotor_ESTOP은 더 이상 Serial.write()를 하지 않음
+    // 응답은 prvSerialTask에서 처리
+    // Serial.write(tx_byte);  // 주석 처리
     vTaskDelay(xFrequency);
   }
 }
@@ -285,6 +280,3 @@ void Motor_DOWN() {
   digitalWrite(MOTOR_B_IN2, HIGH);
   motor_speed(150);
 }
-
-
-

@@ -40,6 +40,8 @@ bool MainController::initWebController(const std::string& socket_path)
 
 bool MainController::initMoveController(const std::string& port_name, int baud_rate)
 {
+    moveCtrl = std::make_unique<MoveController>();
+    
     if (!moveCtrl->openPort(port_name, baud_rate)) {
         std::cerr << "MainController: MoveController 포트 열기 실패" << std::endl;
         return false;
@@ -91,7 +93,7 @@ void MainController::serverThreadFunction()
         if(webCtrl->receive_message(buffer, sizeof(buffer)))
         {
             // 받은 메시지를 우선순위 큐에 추가
-            // std::string receivedData(buffer);
+            std::string receivedData(buffer);
             // pushMessage(1, receivedData);
             
 
@@ -99,15 +101,19 @@ void MainController::serverThreadFunction()
             //가령 실제 움직일 수 없다고 moveController가 파악한 경우 해결 방법
             if(receivedData == "up" || receivedData == "down" || receivedData == "left" 
                 || receivedData == "right"){
-                if(mapper->IsMappingDone()){
-                    moveCtrl->processCommand(receivedData);
-                    
+                if(mapper->IsMappingDone()){    
                     webCtrl->send_response("MAPPINGDONE");
                     continue;
+
+                    
                 }
                 else{
                     // movecontroller 넣을 곳
-                    webCtrl->send_response("ACK");
+                    bool moveSuccess = moveCtrl->processCommand(receivedData);
+                    if(moveSuccess){
+                        webCtrl->send_response("ACK");
+                        pushMessage(1, receivedData);
+                    }
                     continue;
                 }   
             }

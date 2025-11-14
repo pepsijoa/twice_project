@@ -3,7 +3,7 @@ module;
 #include <unistd.h>
 #include <string.h> 
 #include <iostream>
-#include <cstdint.h>
+#include <cstdint>
 
 export module moveController;
   
@@ -15,7 +15,7 @@ export class MoveController {
 
         // 소멸자
         ~MoveController();
-        bool isReady();
+        bool isReady() const;
         bool processCommand(const std::string& msg);
 
         bool openPort(const std::string& port_name, int baud_rate);
