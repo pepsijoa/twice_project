@@ -91,8 +91,8 @@ void MainController::serverThreadFunction()
         if(webCtrl->receive_message(buffer, sizeof(buffer)))
         {
             // 받은 메시지를 우선순위 큐에 추가
-            std::string receivedData(buffer);
-            pushMessage(1, receivedData);  // 우선순위 1로 설정
+            // std::string receivedData(buffer);
+            // pushMessage(1, receivedData);
             
 
             //TODO : message를 처리할 수 있는지 파악해야 함.
@@ -100,6 +100,8 @@ void MainController::serverThreadFunction()
             if(receivedData == "up" || receivedData == "down" || receivedData == "left" 
                 || receivedData == "right"){
                 if(mapper->IsMappingDone()){
+                    moveCtrl->processCommand(receivedData);
+                    
                     webCtrl->send_response("MAPPINGDONE");
                     continue;
                 }

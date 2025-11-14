@@ -66,22 +66,15 @@ bool WebController::accept_connection()
         std::cerr << "서버가 초기화되지 않았습니다" << std::endl;
         return false;
     }
-
-    // 이전 클라이언트 연결이 있으면 닫기
     if (client_fd != -1) {
         close(client_fd);
         client_fd = -1;
     }
-
-    //std::cout << "클라이언트 대기 중..." << std::endl;
-    
     client_fd = accept(server_fd, nullptr, nullptr);
     if (client_fd == -1) {
         std::cerr << "클라이언트 연결 실패" << std::endl;
         return false;
     }
-
-    //std::cout << "클라이언트 연결됨" << std::endl;
     return true;
 }
 
