@@ -31,7 +31,7 @@ def safe_socket_communication(command, buffer_size=1024, timeout=5):
             return False, f"소켓 연결 오류: {str(e)}"
         finally:
             time.sleep(0.05)  # 50ms로 단축
-# 보안 헤더 추가
+            
 @app.after_request
 def add_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -207,13 +207,8 @@ def cert_guide():
     """인증서 설치 가이드"""
     import socket
     hostname = socket.gethostname()
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-    except:
-        ip = "127.0.0.1"
+    # 외부 IP 주소 고정
+    ip = "112.214.181.224"
     
     return f'''
     <!DOCTYPE html>
