@@ -8,8 +8,9 @@
 
 #include <Arduino_FreeRTOS.h>
 #include <queue.h> // Queue API 헤더
-#include <pinChangeInterrupt.h>
-#include <wire.h>
+#include <PinChangeInterrupt.h>
+#include <Wire.h>
+#include <MPU6050_light.h>
 
 #define MOTOR_A_IN1 9
 #define MOTOR_A_IN2 10
@@ -28,23 +29,23 @@
 
 #define IMU_INT 2 
 
-const int STOP_DISTANCE_CM 10
+const int STOP_DISTANCE_CM = 10;
 // MOTOR HARDWARE SPEC
-const float WHEEL_DIAMETER_CM 6.5f
-const int   COUNTS_PER_REV    20.0
+const float WHEEL_DIAMETER_CM = 6.5f;
+const float COUNTS_PER_REV = 20.0;
 
-#define DIST_PER_PULSE    (PI * WHEEL_DIAMETER_CM / COUNTS_PER_REV)
+#define DIST_PER_PULSE (PI * WHEEL_DIAMETER_CM / COUNTS_PER_REV)
 
-volatile long Encoder_A_count = 0l;
-volatile long Encoder_B_count = 0l;
+volatile long g_ENCODER_LEFT_COUNT = 0l; 
+volatile long g_ENCODER_RIGHT_COUNT = 0l;
 
-volatile float robot_x = 0.0;
-volatile float robot_y = 0.0;
-volatile float robot_theta = 0.0;
+volatile float g_robot_x = 0.0;
+volatile float g_robot_y = 0.0;
+volatile float g_robot_theta = 0.0;
 
-MPU6050 mpu(wire);
+MPU6050 mpu(Wire);
 
-typedef FloatPacket {
+typedef struct _FloatPacket {
   float value;
   uint8_t bytes[4];
 } FloatPacket_t;
@@ -86,6 +87,13 @@ const char* getCommandString(MotorCommand_t cmd) {
   }
 }
 
+void ISR_Encoder_A(){
+  g_ENCODER_LEFT_COUNT++;  
+}
+
+void ISR_Encoder_B(){
+  g_ENCODER_RIGHT_COUNT++;
+}
 void setup() {
   Serial.begin(115200);
   
@@ -143,13 +151,7 @@ void setup() {
   vTaskStartScheduler();
 }
 
-void ISR_ENCODER_A(){
-  Encoder_A_count++;  
-}
 
-void ISR_ENCODER_B(){
-  Encoder_B_count++;
-}
 
 void loop() {}
 
@@ -242,6 +244,7 @@ void prvSensorandTX(void *pvParameters) {
 
   long prev_Encoder_A = 0;
   long prev_Encoder_B = 0;
+  float prev_theta = 0; 
 
   FloatPacket_t px, py, ptheta;
   uint8_t tx_byte = 0; 
@@ -250,40 +253,80 @@ void prvSensorandTX(void *pvParameters) {
   const TickType_t xFrequency = 50 / portTICK_PERIOD_MS; 
   TickType_t xLastWakeTime = xTaskGetTickCount();
 
-  long duration;
-  int distance = 0;
   MotorCommand_t estop_cmd = CMD_STOP; // E-STOP은 항상 STOP 명령만 보냄
-  
-
-  FloatPacket_t px, py, ptheta; 
-
-  uint8_t tx_byte = 0b00000001;
 
   for (;;) {
+    unsigned long startTime = micros(); // 1. 시작 시간 기록
+    mpu.update();
+
+    long curr_ENCODER_A; long curr_ENCODER_B;
+    taskENTER_CRITICAL();
+    curr_ENCODER_A = g_ENCODER_LEFT_COUNT;
+    curr_ENCODER_B = g_ENCODER_RIGHT_COUNT;
+    taskEXIT_CRITICAL();
+
+    long diff_ENCODER_A = curr_ENCODER_A - prev_Encoder_A;
+    long diff_ENCODER_B = curr_ENCODER_B - prev_Encoder_B;
+
+    prev_Encoder_A = curr_ENCODER_A;
+    prev_Encoder_B = curr_ENCODER_B;
+    prev_theta = g_robot_theta;
+
+    // 후진 판단
+
+    float dir_factor = 1.0;
+    if (g_currentMotorState == CMD_DOWN) dir_factor = -1.0;
+
+    float distance_A = diff_ENCODER_A * DIST_PER_PULSE * dir_factor;
+    float distance_B = diff_ENCODER_B * DIST_PER_PULSE * dir_factor;
+    float dist_center = (distance_A + distance_B) / 2.0;
+
+    // Rotation 각도
+
+    float current_angle_deg = mpu.getAngleZ();
+    g_robot_theta = current_angle_deg * PI / 180;
+    float avg_theta = (prev_theta + g_robot_theta) / 2.0;
+    // 2-5. 좌표 적분 (Dead Reckoning)
+    // x' = x + d * cos(theta)
+    // y' = y + d * sin(theta)
+    // (만약 제자리 회전 중이라면 dist_center가 거의 0이므로 위치 안 변함 -> 정확!)
+    g_robot_x += dist_center * cos(avg_theta);
+    g_robot_y += dist_center * sin(avg_theta);
+
+    digitalWrite(TRIG_PIN, LOW); delayMicroseconds(2);
+    digitalWrite(TRIG_PIN, HIGH); delayMicroseconds(10); 
     digitalWrite(TRIG_PIN, LOW);
-    delayMicroseconds(2);
-    digitalWrite(TRIG_PIN, HIGH);
-    delayMicroseconds(10); 
-    digitalWrite(TRIG_PIN, LOW);
 
-    duration = pulseIn(ECHO_PIN, HIGH, 5000);
+    long duration = pulseIn(ECHO_PIN, HIGH, 5000);
+    int distance = duration / 58;
 
-    distance = duration / 58;
-
-    if (distance > 0 && distance < STOP_DISTANCE_CM) {
-      // Serial.println("!!! E-STOP TRIGGERED !!!"); // (디버깅용)
+    bool isEmergency = distance > 0 && distance < STOP_DISTANCE_CM;
+    if (isEmergency) {
       g_isObstacleDetected = true;  // 전역 플래그 설정
       xQueueOverwrite(xMotorQueue, &estop_cmd);
-      tx_byte = 0b01101110;  // 'n'
     }
     else {
       g_isObstacleDetected = false;  // 전역 플래그 해제
-      tx_byte = 0b01111001;  // 'y'
     }
-    // prvMotor_ESTOP은 더 이상 Serial.write()를 하지 않음
-    // 응답은 prvSerialTask에서 처리
-    // Serial.write(tx_byte);  // 주석 처리
-    vTaskDelay(xFrequency);
+    px.value = g_robot_x;
+    py.value = g_robot_y;
+    ptheta.value = g_robot_theta;
+
+    if (isEmergency) tx_byte = 0x02;
+    else tx_byte = 0x01;
+
+    Serial.write(0xAA);        // 설정을 안하면 1 byte 
+    Serial.write(0xBB);
+    Serial.write(px.bytes, sizeof(px.bytes)); // px.byte 를 4 byte 만큼 전송 
+    Serial.write(py.bytes, sizeof(px.bytes));
+    Serial.write(ptheta.bytes, sizeof(px.bytes));
+    Serial.write(tx_byte);
+
+    unsigned long endTime = micros();   // 2. 끝 시간 기록 -> Task Frequency 설정 위함 
+    
+    Serial.write((uint8_t*)&endTime, sizeof(endTime));
+
+    vTaskDelayUntil(&xLastWakeTime, xFrequency);
   }
 }
 
