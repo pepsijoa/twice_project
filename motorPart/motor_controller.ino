@@ -8,6 +8,8 @@
 
 #include <Arduino_FreeRTOS.h>
 #include <queue.h> // Queue API 헤더
+#include <pinChangeInterrupt.h>
+#include <wire.h>
 
 #define MOTOR_A_IN1 9
 #define MOTOR_A_IN2 10
@@ -20,7 +22,33 @@
 // 초음파 센서 
 #define TRIG_PIN 7  
 #define ECHO_PIN 8
-#define STOP_DISTANCE_CM 10
+
+#define ENCODER_A_INT 0
+#define ENCODER_B_INT 1
+
+#define IMU_INT 2 
+
+const int STOP_DISTANCE_CM 10
+// MOTOR HARDWARE SPEC
+const float WHEEL_DIAMETER_CM 6.5f
+const int   COUNTS_PER_REV    20.0
+
+#define DIST_PER_PULSE    (PI * WHEEL_DIAMETER_CM / COUNTS_PER_REV)
+
+volatile long Encoder_A_count = 0l;
+volatile long Encoder_B_count = 0l;
+
+volatile float robot_x = 0.0;
+volatile float robot_y = 0.0;
+volatile float robot_theta = 0.0;
+
+MPU6050 mpu(wire);
+
+typedef FloatPacket {
+  float value;
+  uint8_t bytes[4];
+} FloatPacket_t;
+
 
 //--- 2. Queue 핸들 정의 ---
 QueueHandle_t xMotorQueue;
@@ -70,8 +98,14 @@ void setup() {
   pinMode(ENABLE_B, OUTPUT);
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
-  pinMode(13, OUTPUT);
-  digitalWrite(13, LOW);
+
+  pinMode(ENCODER_A_INT, INPUT_PULLUP);
+  pinMode(ENCODER_B_INT, INPUT_PULLUP);
+
+  pinMode(IMU_INT, INPUT_PULLUP);
+
+  attachPCINT(digitalPinToPCINT(ENCODER_A_INT), ISR_Encoder_A, CHANGE);
+  attachPCINT(digitalPinToPCINT(ENCODER_B_INT), ISR_Encoder_B, CHANGE);
 
   //--- 1. 큐 생성 ---
   xMotorQueue = xQueueCreate(1, sizeof(MotorCommand_t));
@@ -83,8 +117,8 @@ void setup() {
 
   //--- 2. 태스크 생성 ---
   xTaskCreate(
-    prvSerialTask,    // 태스크 함수 포인터
-    "SerialTask & RX",     // 태스크 이름
+    prvRX,    // 태스크 함수 포인터
+    "RX",     // 태스크 이름
     128,              // 스택 크기 (word 단위)
     NULL,             // 태스크 파라미터
     1,                // 우선순위 (낮음)
@@ -99,7 +133,7 @@ void setup() {
     &Motor_Control);  // 태스크 핸들
   
   xTaskCreate(
-    prvMotor_ESTOP,
+    prvSensorandTX,
     "Sensor & TX",
     128,
     NULL,
@@ -109,9 +143,17 @@ void setup() {
   vTaskStartScheduler();
 }
 
+void ISR_ENCODER_A(){
+  Encoder_A_count++;  
+}
+
+void ISR_ENCODER_B(){
+  Encoder_B_count++;
+}
+
 void loop() {}
 
-void prvSerialTask(void *pvParameters) {
+void prvRX(void *pvParameters) {
   (void) pvParameters;
 
   uint8_t rx_byte;
@@ -164,8 +206,6 @@ void prvMotorTask(void *pvParameters) {
     //--- 큐에서 명령이 올 때까지 무한정 대기 (Blocked 상태) ---
     // 큐에 데이터가 들어오면 이 태스크는 즉시 'Ready' 상태가 됨
     if (xQueueReceive(xMotorQueue, &received_cmd, portMAX_DELAY) == pdPASS) {
-      
-      //Serial.println(getCommandString(received_cmd)); // 헬퍼 함수 사용
       switch (received_cmd) {
         case CMD_UP:
           Motor_UP();
@@ -191,14 +231,31 @@ void prvMotorTask(void *pvParameters) {
   }
 }
 
-void prvMotor_ESTOP(void *pvParameters) {
+void prvSensorandTX(void *pvParameters) {
   (void) pvParameters;
+  Wire.begin();
+  byte status = mpu.begin();
+  if(status == 0){
+    delay(1000);
+    mpu.calcOffsets(); // 초점 잡기
+  }
+
+  long prev_Encoder_A = 0;
+  long prev_Encoder_B = 0;
+
+  FloatPacket_t px, py, ptheta;
+  uint8_t tx_byte = 0; 
+
+  // portTICK_PERIOD_MS = 주기 / ms  50ms 
+  const TickType_t xFrequency = 50 / portTICK_PERIOD_MS; 
+  TickType_t xLastWakeTime = xTaskGetTickCount();
 
   long duration;
-  int distance =0;
+  int distance = 0;
   MotorCommand_t estop_cmd = CMD_STOP; // E-STOP은 항상 STOP 명령만 보냄
   
-  const TickType_t xFrequency = 100 / portTICK_PERIOD_MS;
+
+  FloatPacket_t px, py, ptheta; 
 
   uint8_t tx_byte = 0b00000001;
 
