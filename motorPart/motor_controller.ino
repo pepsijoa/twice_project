@@ -11,6 +11,7 @@
 #include <PinChangeInterrupt.h>
 #include <Wire.h>
 #include <MPU6050_light.h>
+#include <PID_v1.h>
 
 #define MOTOR_A_IN1 9
 #define MOTOR_A_IN2 10
@@ -24,7 +25,7 @@
 #define TRIG_PIN 7  
 #define ECHO_PIN 8
 
-#define ENCODER_A_INT 0
+#define ENCODER_A_INT 3
 #define ENCODER_B_INT 1
 
 #define IMU_INT 2 
@@ -182,7 +183,25 @@ void prvRX(void *pvParameters) {
           cmd_to_send = CMD_UP;
           break;
       }
+      /*
+      String received_msg = Serial.readStringUntil('\n'); 
+      received_msg.trim(); // 앞뒤 공백 및 캐리지 리턴 제거
+      received_msg.toLowerCase(); // 대소문자 구분 없이 처리
 
+      if (received_msg == "up") {
+       cmd_to_send = CMD_UP;
+       } else if (received_msg == "down") {
+         cmd_to_send = CMD_DOWN;
+       } else if (received_msg == "left") {
+         cmd_to_send = CMD_LEFT;
+       } else if (received_msg == "right") {
+         cmd_to_send = CMD_RIGHT;
+       } else if (received_msg == "stop") {
+         cmd_to_send = CMD_STOP;
+       } else {
+         cmd_to_send = CMD_INVALID;
+       }
+      */
       xQueueOverwrite(xMotorQueue, &cmd_to_send);
       
       // 명령 수신 직후 즉시 응답 전송
@@ -199,10 +218,12 @@ void prvRX(void *pvParameters) {
   }
 }
 
+float g_target_heading_deg;
+
 void prvMotorTask(void *pvParameters) {
   (void) pvParameters;
   MotorCommand_t received_cmd;
-  
+ 
   // C언어 스타일의 무한 루프
   for (;;) {
     //--- 큐에서 명령이 올 때까지 무한정 대기 (Blocked 상태) ---
@@ -210,16 +231,24 @@ void prvMotorTask(void *pvParameters) {
     if (xQueueReceive(xMotorQueue, &received_cmd, portMAX_DELAY) == pdPASS) {
       switch (received_cmd) {
         case CMD_UP:
-          Motor_UP();
+          g_target_heading_deg = 0.0f;
+          rotate_sequence();
+          move_sequence();
           break;
         case CMD_DOWN:
-          Motor_DOWN();
+          g_target_heading_deg = 180.0f;
+          rotate_sequence();
+          move_sequence();
           break;
         case CMD_LEFT:
-          Motor_LEFT();
+          g_target_heading_deg = -90.0f;
+          rotate_sequence();
+          move_sequence();
           break;
         case CMD_RIGHT:
-          Motor_RIGHT();
+          g_target_heading_deg = 90.0f;
+          rotate_sequence();
+          move_sequence();
           break;
         case CMD_STOP:
           Motor_STOP();
@@ -308,6 +337,10 @@ void prvSensorandTX(void *pvParameters) {
     else {
       g_isObstacleDetected = false;  // 전역 플래그 해제
     }
+
+    Serial.print("Heading: ");
+    Serial.print(current_angle_deg, 1); // 소수점 첫째 자리까지 출력
+    
     px.value = g_robot_x;
     py.value = g_robot_y;
     ptheta.value = g_robot_theta;
@@ -330,11 +363,84 @@ void prvSensorandTX(void *pvParameters) {
   }
 }
 
+// 전역 변수 (PID 제어 변수 선언)
+double Input, Output, Setpoint;
+// Kp, Ki, Kd 값은 실험을 통해 튜닝해야 함
+double Kp = 1.5, Ki = 0.01, Kd = 0.5; 
+PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
+
+//회전
+void rotate_sequence() {
+    // 1. PID 설정
+    Setpoint = g_target_heading_deg;
+    myPID.SetMode(AUTOMATIC);
+    myPID.SetOutputLimits(-255, 255); // PWM 출력 범위
+    
+    float angle_tolerance = 5.0; // 5도 이내 진입 시 정지
+
+    // 2. 메인 제어 루프: 목표에 도달할 때까지 반복
+    while (fabs(g_target_heading_deg - mpu.getAngleZ()) > angle_tolerance) {
+
+        // if (g_isObstacleDetected) {
+        // Motor_STOP();
+        // return;
+        // }
+        
+        // A. 입력 갱신 (피드백)
+        Input = mpu.getAngleZ();
+        
+        // B. PID 계산 (출력 값 Output 갱신)
+        myPID.Compute(); 
+        
+        // C. 출력 적용 (모터 제어)
+        if (Output > 0) {
+            // 양수 출력: 시계 방향 (오른쪽 회전)
+            Motor_RIGHT(abs(Output)); // 한쪽 모터만 ON 또는 차동 구동
+        } else if (Output < 0) {
+            // 음수 출력: 반시계 방향 (왼쪽 회전)
+            Motor_LEFT(abs(Output)); // 한쪽 모터만 ON 또는 차동 구동
+        } else {
+            Motor_STOP();
+        }
+
+        // D. 태스크 지연 (주기성 확보)
+        vTaskDelay(10 / portTICK_PERIOD_MS); 
+    }
+    Motor_STOP(); // 최종 정지
+}
+
+//이동
+void move_sequence() {
+  digitalWrite(MOTOR_A_IN1, HIGH);
+  digitalWrite(MOTOR_A_IN2, LOW);
+
+  digitalWrite(MOTOR_B_IN1, HIGH);
+  digitalWrite(MOTOR_B_IN2, LOW);
+
+  long target_pulses = 1000; // 예시: 1000 펄스를 한 칸으로 가정
+  long start_count = g_ENCODER_LEFT_COUNT; // 왼쪽 엔코더 카운트 사용
+
+  // (주의: 이 루프는 FreeRTOS Task 내에서 vTaskDelay를 사용해야 함)
+  while (g_ENCODER_LEFT_COUNT - start_count < target_pulses) {
+      // E-STOP 체크를 위해 prvSensorandTX에게 CPU를 양보
+      vTaskDelay(10 / portTICK_PERIOD_MS); 
+
+      if (g_isObstacleDetected) {
+        Motor_STOP();
+        return;
+        }
+  }
+  
+  // 3. 최종 정지
+  Motor_STOP();
+
+}
+
 void motor_speed(int spd)  
 {  
   analogWrite(ENABLE_A,spd);  
   analogWrite(ENABLE_B,spd);  
-}  
+}
 
 void Motor_UP() {
   digitalWrite(MOTOR_A_IN1, HIGH);
@@ -354,22 +460,22 @@ void Motor_STOP() {
   motor_speed(150);
 }
 
-void Motor_LEFT() {
+void Motor_LEFT(int spd) {
   digitalWrite(MOTOR_A_IN1, HIGH);
   digitalWrite(MOTOR_A_IN2, LOW);
 
   digitalWrite(MOTOR_B_IN1, LOW);
   digitalWrite(MOTOR_B_IN2, HIGH);
-  motor_speed(150);
+  motor_speed(spd);
 }
 
-void Motor_RIGHT() {
+void Motor_RIGHT(int spd) {
   digitalWrite(MOTOR_A_IN1, LOW);
   digitalWrite(MOTOR_A_IN2, HIGH);
 
   digitalWrite(MOTOR_B_IN1, HIGH);
   digitalWrite(MOTOR_B_IN2, LOW);
-  motor_speed(150);
+  motor_speed(spd);
 }
 
 void Motor_DOWN() {

@@ -135,7 +135,7 @@ bool MoveController::processCommand(const std::string& msg) {
     }
 }
 
-char MoveController::sendCommandToArduino(uint8_t cmd) {
+int MoveController::sendCommandToArduino(uint8_t cmd) {
     if (write(serial_fd, &cmd, 1) != 1) {
         std::cerr << "MoveController: 아두이노에 쓰기 실패" << std::endl;
         return 'E'; // Error
@@ -156,7 +156,6 @@ char MoveController::sendCommandToArduino(uint8_t cmd) {
             if (read(serial_fd, &byte_in, 1) == 1) {
                 // 두 번째 헤더 발견 -> 진짜 데이터 시작
                 if (byte_in == 0xBB) {
-                    
                     // 구조체 크기만큼 데이터 읽기 (13 바이트)
                     RobotDataPacket packet;
                     uint8_t buffer[sizeof(RobotDataPacket)];
@@ -168,6 +167,7 @@ char MoveController::sendCommandToArduino(uint8_t cmd) {
                     
                     while(bytes_read < total_bytes) {
                         int r = read(serial_fd, buffer + bytes_read, total_bytes - bytes_read);
+                        // read(int fd, void* buf, size_t nbytes); fd = 데이터 전송 대상, 수신 데이터 저장, 수신 최대 byte 수 
                         if (r <= 0) break;
                         bytes_read += r;
                     }
@@ -175,13 +175,6 @@ char MoveController::sendCommandToArduino(uint8_t cmd) {
                     if (bytes_read == total_bytes) {
                         // 버퍼를 구조체로 변환
                         std::memcpy(&packet, buffer, sizeof(RobotDataPacket));
-
-                        // [디버깅] 수신된 데이터 출력
-                        std::cout.precision(2);
-                        std::cout << " >> [Arduino] X:" << packet.x 
-                                  << " Y:" << packet.y 
-                                  << " Th:" << packet.theta 
-                                  << " Stat:" << (int)packet.status << std::endl;
 
                         return packet.status; // 상태값 반환
                     }
