@@ -11,8 +11,18 @@ export class Mapper{
         int mostRight = 0, mostUp = 0;
         bool doneMapping = false;
         std::vector<std::vector<int>> map;
+
         std::vector<std::pair<int, int>> locations{{0,0}};
-        std::vector<std::pair<int, int>> featureLocations;
+        
+        struct FeaturePoint{
+            std::pair<int, int> position;
+            std::string name;
+        };
+
+        std::vector<FeaturePoint> featureLocations;
+        std::vector<FeaturePoint> sendFeatureinfo;
+
+        // std::vector<std::pair<int, int>> featureLocations;
         std::pair<int, int> currentLocation{0,0};
         void updateMapWithCurrentState();  // 실시간 맵 업데이트 함수
         
@@ -20,8 +30,10 @@ export class Mapper{
         Mapper();
         std::string getMappingMessages(const char* msg);
         bool IsMappingDone();
-        std::vector<std::vector<int>> getMap() const;
-        std::vector<std::pair<int, int>> findSearchingPathBFS(const std::vector<std::vector<int>>& map, std::pair<int,int> start, std::pair<int,int> end);
-        std::vector<std::pair<int, int>> findNavigatingPathBFS(const std::vector<std::vector<int>>& map, std::pair<int,int> start, std::pair<int,int> end);
+        void updateNavigateResult(std::pair<int,int> locate, int state);
+        std::vector<std::vector<int>> getMap() const {return map;}
+        std::vector<FeaturePoint> getFeatureInfo() const { return sendFeatureinfo; }
+        std::vector<std::pair<int, int>> findSearchingPathBFS(std::pair<int,int> end);
+        std::vector<std::pair<int, int>> findNavigatingPathBFS(std::pair<int,int> end);
         ~Mapper();
 };

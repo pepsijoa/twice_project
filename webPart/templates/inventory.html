@@ -772,31 +772,30 @@
                     const value = mapArray[y][x];
                     let content = '';
                     let style = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 28px; position: relative; min-width: 40px; min-height: 40px;';
-                    
                     // 값에 따른 스타일 및 아이콘 설정
                     if (value === 0) {
-                        content = '⬜';  // 빈 공간 아이콘
+                        content = '⬜';
                         style += ' background: #f8f9fa;';
                     } else if (value === 1) {
-                        content = '🟢';  // 경로 아이콘
+                        content = '🟢';
                         style += ' background: #d4edda;';
+                    } else if (value === -1) {
+                        content = '⬛';
+                        style += ' background: #333; color: #fff;';
                     } else if (value === 2) {
-                        // 특징점 번호 찾기 (화면 표시 기준)
                         const featureIndex = featurePositions.findIndex(pos => 
                             pos.x === x && pos.displayY === (height - 1 - y)
                         );
                         const featureNumber = featureIndex + 1;
-                        
                         content = `🔶<span style="position: absolute; top: -8px; right: -8px; background: white; border-radius: 50%; width: 24px; height: 24px; font-size: 16px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #333; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${featureNumber}</span>`;
                         style += ' background: #fff3cd;';
                     } else if (value === 3) {
-                        content = '🤖';  // 로봇 현재 위치
+                        content = '🤖';
                         style += ' background: #cce5ff;';
                     } else {
                         content = value;
                         style += ' background: #f8f9fa;';
                     }
-                    
                     mapHtml += `<div style="${style}">${content}</div>`;
                 }
             }

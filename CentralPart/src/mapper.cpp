@@ -5,6 +5,7 @@ module;
 #include <vector>
 #include <queue>
 #include<algorithm>
+#include <string>
 
 module mapper;
 
@@ -20,6 +21,8 @@ msg로 doneMapping -> MAPPINGOK
 */
 std::string Mapper::getMappingMessages(const char* msg)
 {
+    std::string msg_s(msg);
+
     if(!doneMapping)
     {
         if(strcmp(msg, "left") == 0){
@@ -85,8 +88,8 @@ std::string Mapper::getMappingMessages(const char* msg)
             
             // feature 지점 좌표 보정
             for(auto& loc : featureLocations){
-                loc.second = loc.second + (mostLeft * -1);
-                loc.first = loc.first + (mostDown * -1);
+                loc.position.second = loc.position.second + (mostLeft * -1);
+                loc.position.first = loc.position.first + (mostDown * -1);
             }
             
             // 현재 위치 보정
@@ -107,9 +110,14 @@ std::string Mapper::getMappingMessages(const char* msg)
             return "DONEMAPPING";
         }
         
-        else if(strcmp(msg, "featureShot") == 0){
-            featureLocations.push_back(currentLocation);            
-            // 특징점 추가 후 맵 업데이트
+        else if(msg_s.rfind("featureShot/", 0) == 0){
+            
+            std::string featureName = msg_s.substr(std::string("featureShot/").length());
+            FeaturePoint currentFeature;
+            currentFeature.position = currentLocation;
+            currentFeature.name = featureName;
+            featureLocations.push_back(currentFeature);            
+            
             updateMapWithCurrentState();
             
             return "FEATURESHOTOK";
@@ -127,7 +135,7 @@ std::string Mapper::getMappingMessages(const char* msg)
     }
 }
 
-std::vector<std::pair<int, int>> Mapper::findSearchingPathBFS(const std::vector<std::vector<int>>& map, std::pair<int,int>start, std::pair<int,int>end)
+std::vector<std::pair<int, int>> Mapper::findSearchingPathBFS(std::pair<int,int>end)
 {
 	int ysize = map.size();
 	int xsize = map[0].size();
@@ -135,6 +143,7 @@ std::vector<std::pair<int, int>> Mapper::findSearchingPathBFS(const std::vector<
 	int dy[] {1, -1, 0, 0};
 	int dx[]{ 0, 0, -1, 1 };
 
+    std::pair<int, int> start = currentLocation;
 	std::vector<std::vector<bool>> visited(ysize, std::vector<bool>(xsize, false));
 	std::vector<std::pair<int, int>> result;
 	std::vector<std::vector<std::pair<int, int>>> parent(ysize, std::vector<std::pair<int, int>>(xsize, { -1,-1 }));
@@ -189,13 +198,16 @@ std::vector<std::pair<int, int>> Mapper::findSearchingPathBFS(const std::vector<
 	}
 }
 
-std::vector<std::pair<int, int>> Mapper::findNavigatingPathBFS(const std::vector<std::vector<int>>& map, std::pair<int,int>start, std::pair<int,int>end)
+std::vector<std::pair<int, int>> Mapper::findNavigatingPathBFS(std::pair<int,int>end)
 {
 	int ysize = map.size();
 	int xsize = map[0].size();
 
 	int dy[] {1, -1, 0, 0};
 	int dx[]{ 0, 0, -1, 1 };
+
+    std::pair<int, int> start = currentLocation;
+
 
 	std::vector<std::vector<bool>> visited(ysize, std::vector<bool>(xsize, false));
 	std::vector<std::pair<int, int>> result;
@@ -251,24 +263,16 @@ std::vector<std::pair<int, int>> Mapper::findNavigatingPathBFS(const std::vector
 	}
 }
 
+void Mapper::updateNavigateResult(std::pair<int,int> locate, int state)
+{
+    map[locate.first][locate.second] = state;
+}
+
 bool Mapper::IsMappingDone()
 {
     return doneMapping;
 }
 
-std::vector<std::vector<int>> Mapper::getMap() const
-{
-    return map;
-    // std::vector<std::vector<int>> mapCopy = map;
-    
-    // if (!mapCopy.empty() && 
-    //     currentLocation.first >= 0 && currentLocation.first < static_cast<int>(mapCopy.size()) &&
-    //     currentLocation.second >= 0 && currentLocation.second < static_cast<int>(mapCopy[0].size())) {
-    //     mapCopy[currentLocation.first][currentLocation.second] = 3;
-    // }
-    
-    // return mapCopy;
-}
 
 // 실시간 맵 업데이트 함수
 void Mapper::updateMapWithCurrentState()
@@ -278,7 +282,9 @@ void Mapper::updateMapWithCurrentState()
     }
     
     std::vector<std::pair<int, int>> tempLocations;
-    std::vector<std::pair<int, int>> tempFeatureLocations;
+    std::vector<FeaturePoint> tempFeatureLocations;
+
+    //std::vector<std::pair<int, int>> tempFeatureLocations;
     
     // locations 좌표 보정
     for(const auto& loc : locations) {
@@ -289,10 +295,10 @@ void Mapper::updateMapWithCurrentState()
     }
     
     // featureLocations 좌표 보정
-    for(const auto& loc : featureLocations) {
+    for(const auto& feature : featureLocations) {
         tempFeatureLocations.push_back({
-            loc.first + (mostDown * -1),   // y 좌표 보정
-            loc.second + (mostLeft * -1)   // x 좌표 보정
+            {feature.position.first + (mostDown * -1), feature.position.second + (mostLeft * -1)},
+            feature.name
         });
     }
     
@@ -314,10 +320,10 @@ void Mapper::updateMapWithCurrentState()
         if(loc.first < minY) minY = loc.first;
     }
     for(const auto& loc : tempFeatureLocations) {
-        if(loc.second > maxX) maxX = loc.second;
-        if(loc.first > maxY) maxY = loc.first;
-        if(loc.second < minX) minX = loc.second;
-        if(loc.first < minY) minY = loc.first;
+        if(loc.position.second > maxX) maxX = loc.position.second;
+        if(loc.position.first > maxY) maxY = loc.position.first;
+        if(loc.position.second < minX) minX = loc.position.second;
+        if(loc.position.first < minY) minY = loc.position.first;
     }
 
     // 현재 위치도 포함하여 범위 확인
@@ -331,7 +337,9 @@ void Mapper::updateMapWithCurrentState()
     // 맵 크기 설정 (최소값이 0이 되도록 조정)
     int mapWidth = maxX - minX + 1;
     int mapHeight = maxY - minY + 1;
-    
+
+    sendFeatureinfo = tempFeatureLocations;
+
     // 맵 초기화
     map.clear();
     map.resize(mapHeight, std::vector<int>(mapWidth, 0));
@@ -347,8 +355,8 @@ void Mapper::updateMapWithCurrentState()
 
     // 보정된 featureLocations에 있는 좌표들에 2 할당 (특징점)
     for(const auto& loc : tempFeatureLocations) {
-        int x = loc.second - minX;  // 최소값 기준으로 재조정
-        int y = loc.first - minY;
+        int x = loc.position.second - minX;  // 최소값 기준으로 재조정
+        int y = loc.position.first - minY;
         if(x >= 0 && x < mapWidth && y >= 0 && y < mapHeight) {
             map[y][x] = 2;
         }

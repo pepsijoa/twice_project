@@ -24,6 +24,8 @@ export struct Message {
     bool operator<(const Message& other) const {
         return priority > other.priority;  // 역순 정렬
     }
+
+    
 };
 
 export class MainController {
@@ -34,7 +36,9 @@ private:
         NAVIGATING = 2
     };
 
-    Mode currentMode = MAPPING;
+    std::atomic<Mode> currentMode = MAPPING;
+    std::atomic<bool> navigatingActive = false;
+    
 
     std::unique_ptr<WebController> webCtrl;
     std::unique_ptr<Mapper> mapper;
@@ -42,6 +46,8 @@ private:
     std::unique_ptr<MoveController> moveCtrl;
 
     std::thread serverThread;
+    std::thread navigatingThread;
+
     bool running;
     
     // 공유 우선순위 큐
@@ -51,6 +57,9 @@ private:
     
     // 서버 스레드 함수
     void serverThreadFunction();
+
+    // 내비게이션 스레드 함수
+    void startNavigatingPath();
 
     // 메시지 큐 크기
     size_t getQueueSize();

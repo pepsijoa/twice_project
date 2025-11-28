@@ -14,6 +14,7 @@ module mainController;
 import webController;
 import mapper;
 import moveController;
+import camController;
 
 //생성자
 MainController::MainController() : webCtrl(nullptr), mapper(nullptr), camCtrl(nullptr), running(false)
@@ -115,8 +116,17 @@ void MainController::serverThreadFunction()
                     continue;
                 }   
             }
-            else if (receivedData == "featureShot"){
-                std::cout << "카메라 촬영 요청 받음 (임시 성공 응답)" << std::endl;
+            else if (receivedData.rfind("featureShot/", 0) == 0) { 
+                std::string featureName = receivedData.substr(std::string("featureShot/").length());
+                std::cout << "특징점 촬영 요청, 이름: " << featureName << std::endl;
+
+                bool camSuccess = true; // 실제 촬영 로직으로 대체 가능
+
+                if(camSuccess)
+                {
+                    pushMessage(2, receivedData); // 필요시 featureName만 push 가능
+                }
+
                 webCtrl->send_response("FEATURESHOT_OK");
                 continue;
             }
@@ -136,6 +146,38 @@ void MainController::serverThreadFunction()
         // 각 요청 처리 후 잠시 대기 (다음 연결을 위해)
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
+}
+
+void MainController::startNavigatingPath() {
+
+    auto featureLocations = mapper->getFeatureInfo();
+
+    //const std::vector<std::pair<int,int>>& path
+    navigatingActive = true;
+    navigatingThread = std::thread([this, featureLocations]() {
+        for (const auto& loc :  featureLocations)
+        {
+            std::pair<int,int> goal = loc.position;
+            std::vector<std::pair<int, int>> path = mapper->findNavigatingPathBFS(goal);
+            for (const auto& point : path) {
+                if (currentMode != Mode::NAVIGATING || !navigatingActive) break;
+                // moveController에 명령 전송
+                bool moveSuccess = false;
+                
+                //moveSuccess = moveCtrl->moveTo(point);
+                if(moveSuccess == false)
+                {
+                    mapper->updateNavigateResult(point, -1);
+                }
+                else if (moveSuccess == true)
+                {
+                    mapper->updateNavigateResult(point, 1);
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            }
+        }
+        navigatingActive = false;
+    });
 }
 
 // 메시지 큐에 추가
@@ -188,7 +230,7 @@ std::string MainController::interpretMessage()
             ACKMSG = mapper->getMappingMessages(msg.data.c_str());
             if(ACKMSG == "DONEMAPPING"){
                 currentMode = Mode::NAVIGATING;
-
+                startNavigatingPath();
                 return ACKMSG;
             }
             else {
@@ -203,8 +245,8 @@ std::string MainController::interpretMessage()
             // return "MOVEFAIL";
 
         }
-        else if(msg.data == "featureShot"){
-            // CameraController 통해 사진 받아서 저장하는 로직 처리하기.
+        
+        else if(msg.data.rfind("featureShot/", 0) == 0){
             ACKMSG = mapper->getMappingMessages(msg.data.c_str());
             return ACKMSG;
         }
@@ -234,6 +276,8 @@ std::string MainController::interpretMessage()
 std::string MainController::getMapAsJson()
 {
     auto mapData = mapper->getMap();
+    auto featureData = mapper->getFeatureInfo();
+
     if (mapData.empty()) {
         return "NO_MAP";
     }
@@ -249,6 +293,17 @@ std::string MainController::getMapAsJson()
         json += "]";
     }
     json += "]";
-    
+
+    // featureData를 {y,x,name};{y,x,name};... 형태로 변환
+    std::string featureStr;
+    for (size_t i = 0; i < featureData.size(); ++i) {
+        if (i > 0) featureStr += ";";
+        featureStr += "{" + std::to_string(featureData[i].position.first) + "," +
+                      std::to_string(featureData[i].position.second) + "," +
+                      featureData[i].name + "}";
+    }
+
+    // mapData 뒤에 '/'와 featureData 문자열을 붙여 반환
+    json += "/" + featureStr;
     return json;
 }

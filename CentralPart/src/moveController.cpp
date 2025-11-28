@@ -135,7 +135,7 @@ bool MoveController::processCommand(const std::string& msg) {
     }
 }
 
-int MoveController::sendCommandToArduino(uint8_t cmd) {
+char MoveController::sendCommandToArduino(uint8_t cmd) {
     if (write(serial_fd, &cmd, 1) != 1) {
         std::cerr << "MoveController: 아두이노에 쓰기 실패" << std::endl;
         return 'E'; // Error
@@ -178,7 +178,6 @@ int MoveController::sendCommandToArduino(uint8_t cmd) {
 
                         // [디버깅] 수신된 데이터 출력
                         std::cout.precision(2);
-                        std::cout << fixed; // 소수점 고정
                         std::cout << " >> [Arduino] X:" << packet.x 
                                   << " Y:" << packet.y 
                                   << " Th:" << packet.theta 
