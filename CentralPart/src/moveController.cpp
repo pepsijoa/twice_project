@@ -6,14 +6,22 @@ module;
 #include <cstdint>
 #include <termios.h>
 #include <fcntl.h>
+#include <cstring>
 
 module moveController;
 
+#pragma pack(push, 1) // 1 byte packing 을 통해 빈 공간 없이 데이터 받기 
+struct RobotDataPacket {
+    float x;
+    float y;
+    float theta;
+    uint8_t status;
+};
+
+#pragma pack(pop)
+
 // 생성자
-MoveController::MoveController() 
-    : serial_fd(-1)
-{
-}
+MoveController::MoveController() : serial_fd(-1) {}
 
 // 소멸자
 MoveController::~MoveController() {
@@ -110,13 +118,14 @@ bool MoveController::processCommand(const std::string& msg) {
 
     // 아두이노로 명령을 보내고, "YES/NO/Error" 응답을 받음
     //std::cout << "MoveController: 아두이노로 '" << command_to_arduino << "' 전송 및 응답 대기..." << std::endl;
-    char response = sendCommandToArduino(command_to_arduino);
-
+    int robot_status = sendCommandToArduino(command_to_arduino);
+    
+    // 0x01 = Activate 0x02 = Sensor STOP
     // 응답을 mainController로 전달
-    if (response == 'Y') {
+    if (robot_status == 0x01) {
         std::cout << "MoveController: 아두이노 응답 [YES]" << std::endl;
         return true;
-    } else if (response == 'N') {
+    } else if (robot_status = 0x02) {
         std::cout << "MoveController: 아두이노 응답 [NO] (장애물)" << std::endl;
         return false;
 
@@ -126,29 +135,63 @@ bool MoveController::processCommand(const std::string& msg) {
     }
 }
 
-char MoveController::sendCommandToArduino(uint8_t cmd) {
+int MoveController::sendCommandToArduino(uint8_t cmd) {
     if (write(serial_fd, &cmd, 1) != 1) {
         std::cerr << "MoveController: 아두이노에 쓰기 실패" << std::endl;
         return 'E'; // Error
     }
 
-    // y = 0x79 , 0b01111001
-    // n = 0x6E , 0b01101110
-    uint8_t response_auduino = 0b00000000;
-    for(int i =0; i<10; i++) { 
-        int num_bytes = read(serial_fd, &response_auduino, 1);
-        if(num_bytes != 1) continue;
-        if(response_auduino == 0b01111001 || response_auduino == 0b01101110) break;
-        std::cout << "arduino : " << (int)response_auduino << std::endl;
-    }
-    if(response_auduino == 0b01111001)
-    {
-        return 'Y'; // YES
-    }
-    else if(response_auduino == 0b01101110)
-    {
-        return 'N'; // NO
-    }
-    return 'E'; // Error if no valid response received within attempts
+    uint8_t byte_in;
+    int attempt = 0;
 
+    // 헤더(0xAA, 0xBB)를 찾을 때까지 읽음 (최대 100바이트까지 탐색)
+    while (attempt < 100) {
+        if (read(serial_fd, &byte_in, 1) != 1) {
+            attempt++;
+            continue;
+        }
+
+        // 첫 번째 헤더 발견
+        if (byte_in == 0xAA) {
+            if (read(serial_fd, &byte_in, 1) == 1) {
+                // 두 번째 헤더 발견 -> 진짜 데이터 시작
+                if (byte_in == 0xBB) {
+                    
+                    // 구조체 크기만큼 데이터 읽기 (13 바이트)
+                    RobotDataPacket packet;
+                    uint8_t buffer[sizeof(RobotDataPacket)];
+                    
+                    // read는 한 번에 다 못 읽을 수도 있으므로 루프로 처리하거나
+                    // 간단하게 read 함수 호출 (여기선 간단히 처리)
+                    int bytes_read = 0;
+                    int total_bytes = sizeof(RobotDataPacket);
+                    
+                    while(bytes_read < total_bytes) {
+                        int r = read(serial_fd, buffer + bytes_read, total_bytes - bytes_read);
+                        if (r <= 0) break;
+                        bytes_read += r;
+                    }
+
+                    if (bytes_read == total_bytes) {
+                        // 버퍼를 구조체로 변환
+                        std::memcpy(&packet, buffer, sizeof(RobotDataPacket));
+
+                        // [디버깅] 수신된 데이터 출력
+                        std::cout.precision(2);
+                        std::cout << fixed; // 소수점 고정
+                        std::cout << " >> [Arduino] X:" << packet.x 
+                                  << " Y:" << packet.y 
+                                  << " Th:" << packet.theta 
+                                  << " Stat:" << (int)packet.status << std::endl;
+
+                        return packet.status; // 상태값 반환
+                    }
+                }
+            }
+        }
+        attempt++;
+    }
+
+    std::cerr << "MoveController: 유효한 패킷을 찾지 못함 (Timeout)" << std::endl;
+    return -1; // 에러
 }
