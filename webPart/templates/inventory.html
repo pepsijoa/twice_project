@@ -164,6 +164,44 @@
             background: #27ae60;
         }
 
+        .quantity-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 5px;
+        }
+
+        .quantity-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .quantity-btn:hover {
+            background: #5568d3;
+            transform: scale(1.1);
+        }
+
+        .quantity-btn:active {
+            transform: scale(0.95);
+        }
+
+        .quantity-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .item-actions {
             margin-top: 15px;
             display: flex;
@@ -326,64 +364,10 @@
             </div>
         </div>
 
-        <!-- 재고 카드 그리드 -->
+        <!-- 재고 카드 그리드 (DB에서 동적으로 로드됨) -->
         <div id="inventoryGrid" class="inventory-grid">
-            <!-- 샘플 데이터 (나중에 DB에서 가져올 예정) -->
-            <div class="inventory-card">
-                <div class="item-name">센서 모듈</div>
-                <div class="item-info">
-                    <span class="item-label">수량:</span>
-                    <span class="quantity high">15개</span>
-                </div>
-                <div class="item-info">
-                    <span class="item-label">위치:</span> A-01
-                </div>
-                <div class="item-info">
-                    <span class="item-label">최종 업데이트:</span> 2024-01-15
-                </div>
-                <div class="item-actions">
-                    <button class="action-btn edit-btn" onclick="editItem(1)">✏️ 수정</button>
-                    <button class="action-btn map-btn" onclick="showMap('센서 모듈', 'A-01')">🗺️ 위치</button>
-                    <button class="action-btn delete-btn" onclick="deleteItem(1)">🗑️ 삭제</button>
-                </div>
-            </div>
-
-            <div class="inventory-card">
-                <div class="item-name">모터 드라이버</div>
-                <div class="item-info">
-                    <span class="item-label">수량:</span>
-                    <span class="quantity medium">8개</span>
-                </div>
-                <div class="item-info">
-                    <span class="item-label">위치:</span> A-02
-                </div>
-                <div class="item-info">
-                    <span class="item-label">최종 업데이트:</span> 2024-01-14
-                </div>
-                <div class="item-actions">
-                    <button class="action-btn edit-btn" onclick="editItem(2)">✏️ 수정</button>
-                    <button class="action-btn map-btn" onclick="showMap('모터 드라이버', 'A-02')">🗺️ 위치</button>
-                    <button class="action-btn delete-btn" onclick="deleteItem(2)">🗑️ 삭제</button>
-                </div>
-            </div>
-
-            <div class="inventory-card">
-                <div class="item-name">배터리 팩</div>
-                <div class="item-info">
-                    <span class="item-label">수량:</span>
-                    <span class="quantity low">3개</span>
-                </div>
-                <div class="item-info">
-                    <span class="item-label">위치:</span> B-01
-                </div>
-                <div class="item-info">
-                    <span class="item-label">최종 업데이트:</span> 2024-01-13
-                </div>
-                <div class="item-actions">
-                    <button class="action-btn edit-btn" onclick="editItem(3)">✏️ 수정</button>
-                    <button class="action-btn map-btn" onclick="showMap('배터리 팩', 'B-01')">🗺️ 위치</button>
-                    <button class="action-btn delete-btn" onclick="deleteItem(3)">🗑️ 삭제</button>
-                </div>
+            <div style="text-align: center; padding: 40px; color: white;">
+                <h3>⏳ 재고 데이터를 불러오는 중...</h3>
             </div>
         </div>
 
@@ -415,38 +399,275 @@
                 .catch(err => console.log('Service Worker registration failed'));
         }
 
-        // 검색 기능
-        document.getElementById('searchInput').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const cards = document.querySelectorAll('.inventory-card');
-            
-            cards.forEach(card => {
-                const itemName = card.querySelector('.item-name').textContent.toLowerCase();
-                if (itemName.includes(searchTerm)) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
+        // 페이지 로드 시 재고 데이터 불러오기
+        window.addEventListener('DOMContentLoaded', function() {
+            loadInventory();
         });
 
-        // 재고 추가 함수 (나중에 DB 연동)
-        function addItem() {
-            alert('재고 추가 기능은 DB 연동 후 구현될 예정입니다.');
-            // TODO: 모달 창 띄우기 또는 새 페이지로 이동
+        // 재고 데이터 로드
+        async function loadInventory() {
+            try {
+                const response = await fetch('/api/inventory');
+                const data = await response.json();
+                
+                if (data.status === 'success' && data.items) {
+                    displayInventory(data.items);
+                } else {
+                    showEmptyState();
+                }
+            } catch (error) {
+                console.error('재고 데이터 로드 실패:', error);
+                document.getElementById('inventoryGrid').innerHTML = 
+                    '<div style="text-align: center; padding: 40px; color: white;"><h3>❌ 재고 데이터를 불러올 수 없습니다.</h3><p>데이터베이스 연결을 확인해주세요.</p></div>';
+            }
         }
 
-        // 재고 수정 함수 (나중에 DB 연동)
-        function editItem(id) {
-            alert(`재고 ID ${id} 수정 기능은 DB 연동 후 구현될 예정입니다.`);
-            // TODO: 수정 폼 표시
+        // 재고 카드 표시
+        function displayInventory(items) {
+            const grid = document.getElementById('inventoryGrid');
+            const emptyState = document.getElementById('emptyState');
+            
+            if (!items || items.length === 0) {
+                grid.style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+            
+            grid.style.display = 'grid';
+            emptyState.style.display = 'none';
+            
+            grid.innerHTML = items.map(item => createInventoryCard(item)).join('');
         }
 
-        // 재고 삭제 함수 (나중에 DB 연동)
-        function deleteItem(id) {
-            if (confirm('정말 삭제하시겠습니까?')) {
-                alert(`재고 ID ${id} 삭제 기능은 DB 연동 후 구현될 예정입니다.`);
-                // TODO: DB에서 삭제 후 페이지 갱신
+        // 재고 카드 HTML 생성
+        function createInventoryCard(item) {
+            const quantityClass = item.quantity >= 10 ? 'high' : (item.quantity >= 5 ? 'medium' : 'low');
+            
+            return `
+                <div class="inventory-card" data-id="${item.id}">
+                    <div class="item-name">${escapeHtml(item.name)}</div>
+                    <div class="item-info">
+                        <span class="item-label">수량:</span>
+                        <span class="quantity ${quantityClass}" id="quantity-${item.id}">${item.quantity}개</span>
+                        <div class="quantity-control">
+                            <button class="quantity-btn" onclick="changeQuantity(${item.id}, -1)" title="수량 감소">−</button>
+                            <button class="quantity-btn" onclick="changeQuantity(${item.id}, 1)" title="수량 증가">+</button>
+                        </div>
+                    </div>
+                    <div class="item-info">
+                        <span class="item-label">위치:</span> ${escapeHtml(item.location)}
+                    </div>
+                    <div class="item-info">
+                        <span class="item-label">최종 업데이트:</span> ${item.updated_at || '미상'}
+                    </div>
+                    <div class="item-actions">
+                        <button class="action-btn edit-btn" onclick="editItem(${item.id})">✏️ 수정</button>
+                        <button class="action-btn map-btn" onclick="showMap('${escapeHtml(item.name)}', '${escapeHtml(item.location)}')">🗺️ 위치</button>
+                        <button class="action-btn delete-btn" onclick="deleteItem(${item.id})">🗑️ 삭제</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // HTML 이스케이프 함수 (XSS 방지)
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // 빈 상태 표시
+        function showEmptyState() {
+            document.getElementById('inventoryGrid').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'block';
+        }
+
+        // 검색 기능
+        document.getElementById('searchInput').addEventListener('input', async function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            
+            if (searchTerm === '') {
+                loadInventory();
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/inventory/search?q=${encodeURIComponent(searchTerm)}`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    displayInventory(data.items);
+                }
+            } catch (error) {
+                console.error('검색 실패:', error);
+            }
+        });
+
+        // 재고 추가 함수
+        async function addItem() {
+            const name = prompt('제품 이름을 입력하세요:');
+            if (!name) return;
+            
+            const quantity = parseInt(prompt('수량을 입력하세요:', '0'));
+            if (isNaN(quantity)) return;
+            
+            const location = prompt('위치를 입력하세요 (예: A-01):');
+            if (!location) return;
+            
+            try {
+                const response = await fetch('/api/inventory', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, quantity, location })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    alert('✅ 재고가 추가되었습니다.');
+                    loadInventory();
+                } else {
+                    alert('❌ 재고 추가 실패: ' + data.message);
+                }
+            } catch (error) {
+                console.error('재고 추가 오류:', error);
+                alert('❌ 재고 추가 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 수량 변경 함수
+        async function changeQuantity(id, change) {
+            try {
+                // 현재 재고 정보 가져오기
+                const response = await fetch('/api/inventory');
+                const data = await response.json();
+                const item = data.items.find(i => i.id === id);
+                
+                if (!item) {
+                    alert('재고를 찾을 수 없습니다.');
+                    return;
+                }
+                
+                const newQuantity = item.quantity + change;
+                
+                // 수량이 0 미만이 되지 않도록 체크
+                if (newQuantity < 0) {
+                    alert('❌ 수량은 0 미만이 될 수 없습니다.');
+                    return;
+                }
+                
+                // 서버에 수량 업데이트 요청
+                const updateResponse = await fetch(`/api/inventory/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        name: item.name, 
+                        quantity: newQuantity, 
+                        location: item.location 
+                    })
+                });
+                
+                const updateData = await updateResponse.json();
+                
+                if (updateData.status === 'success') {
+                    // UI 즉시 업데이트
+                    const quantityElement = document.getElementById(`quantity-${id}`);
+                    if (quantityElement) {
+                        quantityElement.textContent = `${newQuantity}개`;
+                        
+                        // 수량에 따라 색상 클래스 변경
+                        quantityElement.className = 'quantity';
+                        if (newQuantity >= 10) {
+                            quantityElement.classList.add('high');
+                        } else if (newQuantity >= 5) {
+                            quantityElement.classList.add('medium');
+                        } else {
+                            quantityElement.classList.add('low');
+                        }
+                    }
+                } else {
+                    alert('❌ 수량 변경 실패: ' + updateData.message);
+                }
+            } catch (error) {
+                console.error('수량 변경 오류:', error);
+                alert('❌ 수량 변경 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 재고 수정 함수
+        async function editItem(id) {
+            try {
+                const response = await fetch('/api/inventory');
+                const data = await response.json();
+                const item = data.items.find(i => i.id === id);
+                
+                if (!item) {
+                    alert('재고를 찾을 수 없습니다.');
+                    return;
+                }
+                
+                const name = prompt('제품 이름:', item.name);
+                if (name === null) return;
+                
+                const quantity = parseInt(prompt('수량:', item.quantity));
+                if (isNaN(quantity)) return;
+                
+                const location = prompt('위치:', item.location);
+                if (location === null) return;
+                
+                const updateResponse = await fetch(`/api/inventory/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, quantity, location })
+                });
+                
+                const updateData = await updateResponse.json();
+                
+                if (updateData.status === 'success') {
+                    alert('✅ 재고가 수정되었습니다.');
+                    loadInventory();
+                } else {
+                    alert('❌ 재고 수정 실패: ' + updateData.message);
+                }
+            } catch (error) {
+                console.error('재고 수정 오류:', error);
+                alert('❌ 재고 수정 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 재고 삭제 함수
+        async function deleteItem(id) {
+            if (!confirm('정말 삭제하시겠습니까?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/inventory/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    alert('✅ 재고가 삭제되었습니다.');
+                    loadInventory();
+                } else {
+                    alert('❌ 재고 삭제 실패: ' + data.message);
+                }
+            } catch (error) {
+                console.error('재고 삭제 오류:', error);
+                alert('❌ 재고 삭제 중 오류가 발생했습니다.');
             }
         }
 

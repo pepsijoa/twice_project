@@ -1,9 +1,10 @@
 module;
 
 #include <unistd.h>
-#include <string.h> 
+#include <string>     
 #include <iostream>
 #include <cstdint>
+#include <memory>     
 
 export module moveController;
   

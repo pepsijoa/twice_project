@@ -5,6 +5,11 @@ import socket
 import time
 import threading
 import json
+from dotenv import load_dotenv
+import database as db
+
+# 환경 변수 로드
+load_dotenv()
 
 app = Flask(__name__)
 SOCKET_PATH = "/tmp/flaskToCPP.sock"
@@ -55,8 +60,99 @@ def controller():
 # 재고 관리 페이지 라우트
 @app.route('/inventory')
 def inventory():
-    # TODO: 나중에 DB에서 재고 데이터를 가져와서 전달
     return render_template('inventory.html')
+
+# 재고 목록 조회 API
+@app.route('/api/inventory', methods=['GET'])
+def get_inventory_list():
+    """모든 재고 목록 조회"""
+    try:
+        items = db.get_all_inventory()
+        return jsonify({'status': 'success', 'items': items})
+    except Exception as e:
+        print(f"재고 목록 조회 오류: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# 재고 검색 API
+@app.route('/api/inventory/search', methods=['GET'])
+def search_inventory_api():
+    """재고 검색"""
+    try:
+        keyword = request.args.get('q', '')
+        if keyword:
+            items = db.search_inventory(keyword)
+        else:
+            items = db.get_all_inventory()
+        return jsonify({'status': 'success', 'items': items})
+    except Exception as e:
+        print(f"재고 검색 오류: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# 재고 추가 API
+@app.route('/api/inventory', methods=['POST'])
+def add_inventory_api():
+    """새 재고 추가"""
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        quantity = data.get('quantity', 0)
+        location = data.get('location')
+        
+        if not name or not location:
+            return jsonify({'status': 'error', 'message': '제품 이름과 위치는 필수입니다.'}), 400
+        
+        item_id = db.add_inventory(name, quantity, location)
+        if item_id:
+            return jsonify({'status': 'success', 'id': item_id, 'message': '재고가 추가되었습니다.'})
+        else:
+            return jsonify({'status': 'error', 'message': '재고 추가에 실패했습니다.'}), 500
+    except Exception as e:
+        print(f"재고 추가 오류: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# 재고 수정 API
+@app.route('/api/inventory/<int:item_id>', methods=['PUT'])
+def update_inventory_api(item_id):
+    """재고 정보 수정"""
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        quantity = data.get('quantity')
+        location = data.get('location')
+        
+        success = db.update_inventory(item_id, name, quantity, location)
+        if success:
+            return jsonify({'status': 'success', 'message': '재고가 수정되었습니다.'})
+        else:
+            return jsonify({'status': 'error', 'message': '재고 수정에 실패했습니다.'}), 404
+    except Exception as e:
+        print(f"재고 수정 오류: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# 재고 삭제 API
+@app.route('/api/inventory/<int:item_id>', methods=['DELETE'])
+def delete_inventory_api(item_id):
+    """재고 삭제"""
+    try:
+        success = db.delete_inventory(item_id)
+        if success:
+            return jsonify({'status': 'success', 'message': '재고가 삭제되었습니다.'})
+        else:
+            return jsonify({'status': 'error', 'message': '재고 삭제에 실패했습니다.'}), 404
+    except Exception as e:
+        print(f"재고 삭제 오류: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# 위치별 재고 조회 API
+@app.route('/api/inventory/location/<location>', methods=['GET'])
+def get_inventory_by_location_api(location):
+    """특정 위치의 재고 조회"""
+    try:
+        items = db.get_inventory_by_location(location)
+        return jsonify({'status': 'success', 'items': items})
+    except Exception as e:
+        print(f"위치별 재고 조회 오류: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # Service Worker 라우트
 @app.route('/sw.js')
@@ -338,6 +434,13 @@ def cert_guide():
     '''
 
 if __name__ == '__main__':
+    # 데이터베이스 초기화
+    print("🔧 데이터베이스 초기화 중...")
+    if db.init_database():
+        print("✅ 데이터베이스 준비 완료")
+    else:
+        print("⚠️  데이터베이스 연결 실패 - 재고 관리 기능이 제한될 수 있습니다.")
+    
     # 포트 설정 (환경변수에서 가져오거나 기본값 5000)
     port = int(os.environ.get('FLASK_PORT', 5000))
     

@@ -296,20 +296,41 @@ void Mapper::updateMapWithCurrentState()
         });
     }
     
-    // 보정된 좌표들에서 최대 x, y 좌표 찾기
+    // 보정된 좌표들에서 최대/최소 x, y 좌표 찾기
     int maxX = 0, maxY = 0;
+    int minX = 0, minY = 0;
+    
+    if(!tempLocations.empty()) {
+        maxX = tempLocations[0].second;
+        maxY = tempLocations[0].first;
+        minX = tempLocations[0].second;
+        minY = tempLocations[0].first;
+    }
+    
     for(const auto& loc : tempLocations) {
         if(loc.second > maxX) maxX = loc.second;
         if(loc.first > maxY) maxY = loc.first;
+        if(loc.second < minX) minX = loc.second;
+        if(loc.first < minY) minY = loc.first;
     }
     for(const auto& loc : tempFeatureLocations) {
         if(loc.second > maxX) maxX = loc.second;
         if(loc.first > maxY) maxY = loc.first;
+        if(loc.second < minX) minX = loc.second;
+        if(loc.first < minY) minY = loc.first;
     }
 
-    // 맵 크기 설정 (0부터 시작하므로 +1)
-    int mapWidth = maxX + 1;
-    int mapHeight = maxY + 1;
+    // 현재 위치도 포함하여 범위 확인
+    int currentY = currentLocation.first + (mostDown * -1);
+    int currentX = currentLocation.second + (mostLeft * -1);
+    if(currentX > maxX) maxX = currentX;
+    if(currentY > maxY) maxY = currentY;
+    if(currentX < minX) minX = currentX;
+    if(currentY < minY) minY = currentY;
+
+    // 맵 크기 설정 (최소값이 0이 되도록 조정)
+    int mapWidth = maxX - minX + 1;
+    int mapHeight = maxY - minY + 1;
     
     // 맵 초기화
     map.clear();
@@ -317,8 +338,8 @@ void Mapper::updateMapWithCurrentState()
 
     // 보정된 locations에 있는 좌표들에 1 할당 (이동 경로)
     for(const auto& loc : tempLocations) {
-        int x = loc.second;
-        int y = loc.first;
+        int x = loc.second - minX;  // 최소값 기준으로 재조정
+        int y = loc.first - minY;
         if(x >= 0 && x < mapWidth && y >= 0 && y < mapHeight) {
             map[y][x] = 1;
         }
@@ -326,18 +347,19 @@ void Mapper::updateMapWithCurrentState()
 
     // 보정된 featureLocations에 있는 좌표들에 2 할당 (특징점)
     for(const auto& loc : tempFeatureLocations) {
-        int x = loc.second;
-        int y = loc.first;
+        int x = loc.second - minX;  // 최소값 기준으로 재조정
+        int y = loc.first - minY;
         if(x >= 0 && x < mapWidth && y >= 0 && y < mapHeight) {
             map[y][x] = 2;
         }
     }
 
-    // 현재 좌표들을 임시로 보정하여 맵 생성
-    int currentY = currentLocation.first + (mostDown * -1);
-    int currentX = currentLocation.second + (mostLeft * -1);
-
-    if(currentY >= 0 && currentY < mapHeight && currentX >= 0 && currentX < mapWidth) {
-        map[currentY][currentX] = 3;
+    // 현재 위치 표시
+    int finalCurrentX = currentX - minX;
+    int finalCurrentY = currentY - minY;
+    
+    if(finalCurrentY >= 0 && finalCurrentY < mapHeight && 
+       finalCurrentX >= 0 && finalCurrentX < mapWidth) {
+        map[finalCurrentY][finalCurrentX] = 3;
     }
 }

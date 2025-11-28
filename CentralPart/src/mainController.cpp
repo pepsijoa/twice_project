@@ -92,11 +92,9 @@ void MainController::serverThreadFunction()
         char buffer[1024];
         if(webCtrl->receive_message(buffer, sizeof(buffer)))
         {
-            // 받은 메시지를 우선순위 큐에 추가
-            std::string receivedData(buffer);
-            // pushMessage(1, receivedData);
             
-
+            std::string receivedData(buffer);
+            
             //TODO : message를 처리할 수 있는지 파악해야 함.
             //가령 실제 움직일 수 없다고 moveController가 파악한 경우 해결 방법
             if(receivedData == "up" || receivedData == "down" || receivedData == "left" 
@@ -108,8 +106,8 @@ void MainController::serverThreadFunction()
                     
                 }
                 else{
-                    // movecontroller 넣을 곳
-                    bool moveSuccess = moveCtrl->processCommand(receivedData);
+                    //bool moveSuccess = moveCtrl->processCommand(receivedData);
+                    bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
                     if(moveSuccess){
                         webCtrl->send_response("ACK");
                         pushMessage(1, receivedData);
@@ -118,7 +116,6 @@ void MainController::serverThreadFunction()
                 }   
             }
             else if (receivedData == "featureShot"){
-                // 임시로 항상 성공 응답 보내기 (카메라 기능이 완전히 구현될 때까지)
                 std::cout << "카메라 촬영 요청 받음 (임시 성공 응답)" << std::endl;
                 webCtrl->send_response("FEATURESHOT_OK");
                 continue;
@@ -187,30 +184,24 @@ std::string MainController::interpretMessage()
     if(popMessage(msg, 5000)){
         std::string ACKMSG = "";
         if(msg.data == "up" || msg.data == "down" || msg.data == "left" || msg.data == "right" || msg.data == "doneMapping"){
-            // moveController에게 실제로 움직일 수 있는지 확인 받고 오기.
-            bool moveSuccess = true;
-            //bool moveSuccess = moveCtrl->processCommand(msg.data);
-            if(moveSuccess) 
-            {
-                //아래에 있는 ACKMSG 파라미터는 done인지 아닌지 확인하고 오기 위함.
-                ACKMSG = mapper->getMappingMessages(msg.data.c_str());
-                if(ACKMSG == "DONEMAPPING"){
-                    currentMode = Mode::NAVIGATING;
+            
+            ACKMSG = mapper->getMappingMessages(msg.data.c_str());
+            if(ACKMSG == "DONEMAPPING"){
+                currentMode = Mode::NAVIGATING;
 
-                    return ACKMSG;
-                }
-                else {
-                    // MOVE OK,
-                    currentMode = Mode::MAPPING;
-                    return ACKMSG;
-                }
+                return ACKMSG;
             }
-            else{
-                // MOVE FAIL, 추가
-                std::cout << "MoveController: 장애물 있음 [" << msg.data << "]" << std::endl;
-                std::cout << "DELETE ME";
-                return "MOVEFAIL";
+            else {
+                // MOVE OK,
+                currentMode = Mode::MAPPING;
+                return ACKMSG;
             }
+            
+
+            // std::cout << "MoveController: 장애물 있음 [" << msg.data << "]" << std::endl;
+            // std::cout << "DELETE ME";
+            // return "MOVEFAIL";
+
         }
         else if(msg.data == "featureShot"){
             // CameraController 통해 사진 받아서 저장하는 로직 처리하기.
