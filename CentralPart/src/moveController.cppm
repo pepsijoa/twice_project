@@ -23,7 +23,7 @@ export class MoveController {
         void closePort();
 
     private:
-        char sendCommandToArduino(uint8_t cmd);
+        int sendCommandToArduino(uint8_t cmd);
         int serial_fd;      // 아두이노와 연결된 시리얼 포트의 파일 디스크립터
         int baud_rate;      // 통신 속도
 };
