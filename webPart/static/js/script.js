@@ -1,49 +1,60 @@
+/* static/js/script.js */
 
+// ==========================================
+// 1. 전역 변수 및 상수 설정
+// ==========================================
 const directionButtons = document.querySelectorAll('.direction-btn');
 const mappingBtn = document.getElementById('mapping-btn');
 const remappingBtn = document.getElementById('remapping-btn');
 const cameraBtn = document.getElementById('camera-btn');
 const mapGrid = document.getElementById('map-grid');
+const mapInfo = document.getElementById('map-info');
+
+// 팝업 관련 요소
+const featurePopup = document.getElementById('feature-name-popup');
+const nameInput = document.getElementById('feature-name-input');
+const confirmBtn = document.getElementById('confirm-feature-btn');
+const cancelBtn = document.getElementById('cancel-feature-btn');
+const mappingDonePopup = document.getElementById('mapping-done-popup');
+const closeMappingPopupBtn = document.getElementById('close-mapping-popup');
 
 let mapUpdateInterval = null;
-let isMappingCompleted = false; // 매핑 완료 상태 추적
+let isMappingCompleted = false;
 
-const directionText = {
-    'up': '⬆️ 위쪽',
-    'down': '⬇️ 아래쪽',
-    'left': '⬅️ 왼쪽',
-    'right': '➡️ 오른쪽'
-};
+// ==========================================
+// 2. 핵심 로직: 맵 렌더링 및 데이터 가져오기
+// ==========================================
 
-// 맵 표시 함수 (개선된 버전)
+// 맵 그리기 함수
 function displayMap(mapData) {
     if (!mapData || !Array.isArray(mapData) || mapData.length === 0) {
         mapGrid.innerHTML = '<div class="map-status">🗺️ 맵 데이터가 없습니다.</div>';
         return;
     }
     
+    // C++에서 오는 데이터는 [y][x] 형태이거나, 1차원 배열일 수 있음.
+    // 여기서는 2차원 배열 [row][col]로 가정 (MainController 수정본 기준)
     const height = mapData.length;
     const width = mapData[0].length;
     
-    // 특징점 위치를 수집하여 왼쪽 위부터 오른쪽 아래 순서로 번호 매기기
+    // 특징점(값 2)의 순서를 매기기 위해 위치 수집
+    // (화면 표시 기준: 왼쪽 아래 -> 오른쪽 위 순서로 번호 부여 예시)
     const featurePositions = [];
-    for (let y = height - 1; y >= 0; y--) {  // 위에서 아래로
-        for (let x = 0; x < width; x++) {    // 왼쪽에서 오른쪽으로
+    for (let y = height - 1; y >= 0; y--) { 
+        for (let x = 0; x < width; x++) {    
             if (mapData[y][x] === 2) {
                 featurePositions.push({x: x, y: y, displayY: height - 1 - y});
             }
         }
     }
     
-    // CSS Grid 설정
+    // CSS Grid 레이아웃 업데이트
     mapGrid.style.gridTemplateColumns = `repeat(${width}, 1fr)`;
     mapGrid.style.gridTemplateRows = `repeat(${height}, 1fr)`;
-    
-    // 맵 셀 생성
     mapGrid.innerHTML = '';
     
-    // 위에서 아래로 표시 (배열의 마지막 행부터 첫 번째 행 순서)
-    for (let y = height - 1; y >= 0; y--) {
+    // 맵 데이터 순회하며 셀 생성 (위쪽 행부터 렌더링)
+    for (let y = height-1; y >= 0; y--) {
         for (let x = 0; x < width; x++) {
             const cell = document.createElement('div');
             cell.className = 'map-cell';
@@ -52,85 +63,69 @@ function displayMap(mapData) {
             
             // 값에 따른 스타일 및 아이콘 설정
             if (value === 0) {
-                cell.classList.add('empty');
-                cell.textContent = '⬜';  // 빈 공간 아이콘
-                cell.title = `빈 공간 (${x}, ${height-1-y})`;
+                cell.classList.add('empty'); // 미지 영역
+                // cell.textContent = '·'; 
             } else if (value === 1) {
-                cell.classList.add('path');
-                cell.textContent = '🟢';  // 경로 아이콘
-                cell.title = `이동 경로 (${x}, ${height-1-y})`;
+                cell.classList.add('path'); // 이동 가능
+                // cell.textContent = '';
             } else if (value === 2) {
-                cell.classList.add('feature');
+                cell.classList.add('feature'); // 재고/특징점
                 
-                // 특징점 번호 찾기 (화면 표시 기준)
-                const featureIndex = featurePositions.findIndex(pos => 
-                    pos.x === x && pos.displayY === (height - 1 - y)
-                );
+                // 번호 찾기
+                const featureIndex = featurePositions.findIndex(pos => pos.x === x && pos.y === y);
                 const featureNumber = featureIndex + 1;
-                
-                cell.innerHTML = `🔶<span class="feature-number">${featureNumber}</span>`;  // 특징점 아이콘 + 번호
-                cell.title = `특징점 #${featureNumber} (${x}, ${height-1-y})`;
+                cell.innerHTML = `🔶<span class="feature-number">${featureNumber}</span>`;
             } else if (value === 3) {
-                cell.classList.add('current-position');
-                cell.textContent = '🤖';  // 로봇 현재 위치
-                cell.title = `로봇 현재 위치 (${x}, ${height-1-y})`;
-            } else {
-                cell.classList.add('empty');
-                cell.textContent = value;
-                cell.title = `알 수 없는 값: ${value} (${x}, ${height-1-y})`;
+                cell.classList.add('current-position'); // 로봇
+                cell.textContent = '🤖';
+            } else if (value === -1) {
+                cell.classList.add('blocked'); // 벽/장애물
+                cell.textContent = '⬛';
             }
             
-            // 호버 효과를 위한 좌표 정보 추가
-            cell.setAttribute('data-x', x);
-            cell.setAttribute('data-y', height-1-y);
-            
+            // 디버깅용 좌표 툴팁
+            cell.title = `(${x}, ${y}) Val: ${value}`;
             mapGrid.appendChild(cell);
         }
     }
     
-    // 맵 크기 정보 표시
-    const mapInfo = document.getElementById('map-info');
+    // 정보 업데이트
     if (mapInfo) {
         mapInfo.textContent = `맵 크기: ${width} × ${height} | 특징점: ${featurePositions.length}개`;
     }
 }
 
-// 맵 데이터 가져오기 함수 (개선된 버전)
+// 서버에서 맵 데이터 가져오기
 async function fetchMapData() {
     try {
         const response = await fetch('/get-map');
         const data = await response.json();
         
         if (data.status === 'success' && data.map) {
-            displayMap(data.map);
+            // data.map이 {grid: [...], features: [...]} 형태일 경우 data.map.grid 사용
+            // 2차원 배열 그대로 오는 경우 data.map 사용
+            const gridData = data.map.grid ? data.map.grid : data.map;
+            displayMap(gridData);
         } else if (data.status === 'no_map') {
-            mapGrid.innerHTML = `<div class="map-status">🔄 ${data.message || '맵이 아직 생성되지 않았습니다.'}</div>`;
-        } else if (data.status === 'error') {
-            console.error('맵 데이터 가져오기 실패:', data.message);
-            if (data.message.includes('Connection refused') || data.message.includes('server not running')) {
-                mapGrid.innerHTML = '<div class="map-status">⚠️ C++ 서버가 실행되지 않았습니다.</div>';
-            } else {
-                mapGrid.innerHTML = '<div class="map-status">❌ 맵 데이터 요청 중 오류 발생</div>';
-            }
+            mapGrid.innerHTML = `<div class="map-status">🔄 ${data.message || '맵 준비 중...'}</div>`;
         } else {
-            console.error('맵 데이터 가져오기 실패:', data.message);
-            mapGrid.innerHTML = '<div class="map-status">❓ 알 수 없는 오류가 발생했습니다.</div>';
+            console.error('맵 데이터 오류:', data.message);
+            // mapGrid.innerHTML = '<div class="map-status">⚠️ 데이터 오류</div>';
         }
     } catch (error) {
-        console.error('맵 데이터 요청 오류:', error);
-        mapGrid.innerHTML = '<div class="map-status">🌐 네트워크 연결 오류</div>';
+        console.error('네트워크 오류:', error);
+        mapGrid.innerHTML = '<div class="map-status">🌐 연결 끊김</div>';
     }
 }
 
-// 맵 업데이트 시작
+// 주기적 업데이트 제어
 function startMapUpdates() {
-    // 즉시 한 번 실행
-    fetchMapData();
-    
-    mapUpdateInterval = setInterval(fetchMapData, 500);  // 0.5초마다 업데이트
+    fetchMapData(); // 즉시 실행
+    if (!mapUpdateInterval) {
+        mapUpdateInterval = setInterval(fetchMapData, 500); // 0.5초마다 갱신
+    }
 }
 
-// 맵 업데이트 중지
 function stopMapUpdates() {
     if (mapUpdateInterval) {
         clearInterval(mapUpdateInterval);
@@ -138,12 +133,62 @@ function stopMapUpdates() {
     }
 }
 
-// 매핑 버튼 상태 업데이트 함수들
+// ==========================================
+// 3. 통신 요청 함수들
+// ==========================================
+
+// 카메라 촬영 요청 (이름 포함)
+async function sendCameraRequest(name) {
+    try {
+        const response = await fetch('/camera', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name })
+        });
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            alert(`✅ 저장 완료: "${data.name}"`);
+            fetchMapData(); // 맵 즉시 갱신
+        } else {
+            alert(`❌ 실패: ${data.message}`);
+        }
+    } catch (error) {
+        console.error('카메라 요청 에러:', error);
+        alert('서버 통신 오류가 발생했습니다.');
+    }
+}
+
+// 방향 제어 요청
+async function sendDirectionControl(direction) {
+    try {
+        const response = await fetch('/control', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ direction: direction })
+        });
+        const data = await response.json();
+
+        if (data.status === 'mapping_done') {
+            showMappingDonePopup();
+        } else if (data.status !== 'success') {
+            console.error('이동 실패:', data.message);
+        }
+    } catch (error) {
+        console.error('제어 요청 실패:', error);
+    }
+}
+
+// ==========================================
+// 4. UI 제어 및 팝업 함수
+// ==========================================
+
 function setMappingButtonToReady() {
     if (mappingBtn) {
         mappingBtn.setAttribute('data-state', 'ready');
-        mappingBtn.querySelector('.mapping-text').textContent = '매핑';
+        mappingBtn.querySelector('.mapping-text').textContent = '매핑 종료';
         mappingBtn.disabled = false;
+        mappingBtn.style.opacity = '1';
         isMappingCompleted = false;
     }
 }
@@ -151,195 +196,154 @@ function setMappingButtonToReady() {
 function setMappingButtonToCompleted() {
     if (mappingBtn) {
         mappingBtn.setAttribute('data-state', 'completed');
-        mappingBtn.querySelector('.mapping-text').textContent = '매핑 완료';
+        mappingBtn.querySelector('.mapping-text').textContent = '매핑 완료됨';
         mappingBtn.disabled = true;
+        mappingBtn.style.opacity = '0.6';
         isMappingCompleted = true;
     }
 }
 
-// 각 버튼에 클릭 이벤트 리스너 추가
-directionButtons.forEach(button => {
-    button.addEventListener('click', async function() {
-        const direction = this.getAttribute('data-direction');
-        this.classList.add('clicked');
-        
-        setTimeout(() => {
-            this.classList.remove('clicked');
-        }, 300);
-        
-        try {
-            const response = await fetch('/control', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ direction: direction })
-            });
+function showMappingDonePopup() {
+    if (mappingDonePopup) {
+        mappingDonePopup.style.display = 'flex';
+        setMappingButtonToCompleted();
+    }
+}
+
+function hideMappingDonePopup() {
+    if (mappingDonePopup) {
+        mappingDonePopup.style.display = 'none';
+    }
+}
+
+// ==========================================
+// 5. 이벤트 리스너 통합 (DOMContentLoaded)
+// ==========================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Script Loaded & Ready');
+
+    // 1. 초기 상태 설정
+    setMappingButtonToReady();
+    startMapUpdates();
+
+    // 2. 방향 버튼 이벤트
+    directionButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const direction = this.getAttribute('data-direction');
             
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                console.log(`✅ 서버 응답 성공: ${data.direction}`);
-            } else if (data.status === 'mapping_done') {
-                console.log(`🗺️ 매핑 완료: ${data.message}`);
-                showMappingDonePopup();
+            // 클릭 애니메이션 효과
+            this.classList.add('clicked');
+            setTimeout(() => this.classList.remove('clicked'), 200);
+
+            sendDirectionControl(direction);
+        });
+    });
+
+    // 3. 카메라 버튼 -> 팝업 열기
+    if (cameraBtn) {
+        cameraBtn.addEventListener('click', () => {
+            if (featurePopup) {
+                if (nameInput) nameInput.value = ''; // 초기화
+                featurePopup.style.display = 'flex';
+                if (nameInput) nameInput.focus();
             } else {
-                console.error('❌ 서버 오류:', data.message);
+                // 팝업 HTML이 없는 경우 비상용 prompt
+                const name = prompt("저장할 위치의 이름을 입력하세요:");
+                if (name) sendCameraRequest(name);
             }
-        } catch (error) {
-            console.error('❌ 네트워크 오류:', error);
-        }
+        });
+    }
+
+    // 4. 특징점 팝업: 확인/취소/엔터키
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
+            const name = nameInput.value.trim();
+            if (!name) {
+                alert('이름을 입력해주세요!');
+                return;
+            }
+            featurePopup.style.display = 'none';
+            sendCameraRequest(name);
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            featurePopup.style.display = 'none';
+        });
+    }
+
+    if (nameInput) {
+        nameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') confirmBtn.click();
+        });
+    }
+
+    // 5. 매핑 종료 버튼
+    if (mappingBtn) {
+        mappingBtn.addEventListener('click', async () => {
+            if (isMappingCompleted) return;
+
+            if (!confirm('매핑을 종료하시겠습니까? 더 이상 맵을 확장하지 않습니다.')) return;
+
+            try {
+                const response = await fetch('/mapping-complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'doneMapping' })
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    setMappingButtonToCompleted();
+                    alert('매핑이 완료되었습니다.');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        });
+    }
+
+    // 6. 리매핑(초기화) 버튼
+    if (remappingBtn) {
+        remappingBtn.addEventListener('click', async () => {
+            if (!confirm('⚠️ 맵을 초기화하고 다시 시작하시겠습니까?\n기존 데이터는 삭제됩니다.')) return;
+
+            try {
+                const response = await fetch('/remapping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    alert('리매핑이 시작되었습니다.');
+                    setMappingButtonToReady();
+                    mapGrid.innerHTML = ''; // 맵 초기화
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        });
+    }
+
+    // 7. 매핑 완료 팝업 닫기
+    if (closeMappingPopupBtn) {
+        closeMappingPopupBtn.addEventListener('click', hideMappingDonePopup);
+    }
+
+    // 8. 팝업 배경 클릭 시 닫기 (공통)
+    window.addEventListener('click', (e) => {
+        if (e.target === featurePopup) featurePopup.style.display = 'none';
+        if (e.target === mappingDonePopup) hideMappingDonePopup();
     });
 });
 
-// 매핑 버튼 이벤트 리스너
-mappingBtn.addEventListener('click', async function() {
-    // 매핑이 완료된 상태면 클릭 무시
-    if (isMappingCompleted) {
-        return;
-    }
-    
-    this.classList.add('clicked');
-    
-    setTimeout(() => {
-        this.classList.remove('clicked');
-    }, 300);
-    
-    try {
-        const response = await fetch('/mapping-complete', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ action: 'doneMapping' })
-        });
-        
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            console.log('✅ 매핑 완료 신호 전송 성공');
-            // 매핑 버튼을 완료 상태로 변경
-            setMappingButtonToCompleted();
-        } else {
-            console.error('❌ 서버 오류:', data.message);
-        }
-    } catch (error) {
-        console.error('❌ 네트워크 오류:', error);
-    }
-});
+// ==========================================
+// 6. 페이지 상태 관리 (성능 최적화)
+// ==========================================
 
-// 리매핑 버튼 이벤트 리스너
-remappingBtn.addEventListener('click', async function() {
-    this.classList.add('clicked');
-    
-    setTimeout(() => {
-        this.classList.remove('clicked');
-    }, 300);
-    
-    // 확인 팝업 표시
-    if (!confirm('🔄 새로운 매핑을 시작하시겠습니까?\n\n현재 매핑 데이터가 모두 삭제됩니다.')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch('/remapping', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            console.log('✅ 리매핑 요청 성공:', data.message);
-            
-            // 성공 알림
-            alert(`🎉 ${data.message}`);
-            
-            // 맵 그리드 초기화
-            mapGrid.innerHTML = '<div class="map-status">🔄 새로운 매핑이 시작되었습니다.</div>';
-            
-            // 매핑 버튼을 다시 준비 상태로 되돌림
-            setMappingButtonToReady();
-            
-        } else {
-            console.error('❌ 서버 오류:', data.message);
-            alert(`❌ 오류: ${data.message}`);
-        }
-    } catch (error) {
-        console.error('❌ 네트워크 오류:', error);
-        alert('❌ 네트워크 연결 오류가 발생했습니다.');
-    }
-});
-
-// 카메라 버튼 이벤트 리스너
-cameraBtn.addEventListener('click', async function() {
-    this.classList.add('clicked');
-    
-    setTimeout(() => {
-        this.classList.remove('clicked');
-    }, 300);
-    
-    // 버튼 비활성화 (중복 클릭 방지)
-    this.disabled = true;
-    const cameraIcon = this.querySelector('.camera-icon');
-    const originalIcon = cameraIcon.textContent;
-    cameraIcon.textContent = '⏳'; // 촬영 중 아이콘
-    
-    try {
-        console.log('📸 카메라 촬영 요청 시작');
-        const response = await fetch('/camera', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const data = await response.json();
-        console.log('카메라 응답:', data);
-        
-        if (data.status === 'success') {
-            console.log('✅ 카메라 촬영 성공:', data.message);
-            
-            // 성공 알림
-            alert(`📸 ${data.message}`);
-            
-        } else if (data.status === 'failed') {
-            console.error('❌ 카메라 촬영 실패:', data.message);
-            alert(`❌ ${data.message}`);
-            
-        } else {
-            console.error('❌ 서버 오류:', data.message);
-            alert(`❌ 오류: ${data.message}`);
-        }
-    } catch (error) {
-        console.error('❌ 네트워크 오류:', error);
-        alert('❌ 네트워크 연결 오류가 발생했습니다.');
-    } finally {
-        // 버튼 복구
-        this.disabled = false;
-        cameraIcon.textContent = originalIcon;
-    }
-});
-
-console.log('🎮 방향 컨트롤러가 준비되었습니다!');
-
-// 페이지 로드 시 맵 업데이트 시작
-document.addEventListener('DOMContentLoaded', function() {
-    // 매핑 버튼을 기본 상태(준비)로 설정
-    setMappingButtonToReady();
-    
-    startMapUpdates();
-});
-
-// 페이지 언로드 시 맵 업데이트 중지
-window.addEventListener('beforeunload', function() {
-    stopMapUpdates();
-});
-
-// 페이지가 숨겨질 때 업데이트 중지, 다시 보일 때 시작
-document.addEventListener('visibilitychange', function() {
+// 탭이 숨겨지면 통신 중단, 다시 열리면 재개
+document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         stopMapUpdates();
     } else {
@@ -347,49 +351,7 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
-// 매핑 완료 팝업 관련 함수들
-function showMappingDonePopup() {
-    const popup = document.getElementById('mapping-done-popup');
-    if (popup) {
-        popup.style.display = 'flex';
-        document.body.style.overflow = 'hidden'; // 배경 스크롤 방지
-        
-        // 자동으로 매핑 버튼을 완료 상태로 변경
-        setMappingButtonToCompleted();
-    }
-}
-
-function hideMappingDonePopup() {
-    const popup = document.getElementById('mapping-done-popup');
-    if (popup) {
-        popup.style.display = 'none';
-        document.body.style.overflow = 'auto'; // 배경 스크롤 복원
-    }
-}
-
-// 팝업 닫기 버튼 이벤트 리스너
-document.addEventListener('DOMContentLoaded', function() {
-    const closeButton = document.getElementById('close-mapping-popup');
-    const popup = document.getElementById('mapping-done-popup');
-    
-    // 닫기 버튼 클릭
-    if (closeButton) {
-        closeButton.addEventListener('click', hideMappingDonePopup);
-    }
-    
-    // 팝업 배경 클릭으로도 닫기
-    if (popup) {
-        popup.addEventListener('click', function(e) {
-            if (e.target === popup) {
-                hideMappingDonePopup();
-            }
-        });
-    }
-    
-    // ESC 키로 팝업 닫기
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            hideMappingDonePopup();
-        }
-    });
+// 페이지 떠날 때 정리
+window.addEventListener('beforeunload', () => {
+    stopMapUpdates();
 });

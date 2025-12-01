@@ -260,15 +260,17 @@
 
         .modal-content {
             background-color: #fefefe;
-            margin: 5% auto;
+            margin: 2% auto; /* 상단 여백 줄임 */
             padding: 20px;
             border: none;
             border-radius: 15px;
-            width: 90%;
-            max-width: 800px;
-            max-height: 80vh;
-            overflow: auto;
+            width: 95%; /* 너비 확대 */
+            max-width: 1400px; /* 최대 너비 확대 */
+            height: 90vh; /* 높이 확대 */
+            overflow: hidden; /* 내부 스크롤을 위해 hidden */
             position: relative;
+            display: flex;
+            flex-direction: column;
         }
 
         .close {
@@ -280,6 +282,7 @@
             position: absolute;
             right: 20px;
             top: 15px;
+            z-index: 1001;
         }
 
         .close:hover,
@@ -289,16 +292,16 @@
         }
 
         .map-container {
-            margin-top: 40px;
+            margin-top: 20px;
             border: 2px solid #ddd;
             border-radius: 10px;
-            height: 70vh;
+            flex: 1; /* 남은 공간 모두 차지 */
             background: #f8f9fa;
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
-            overflow: auto;
+            overflow: auto; /* 스크롤 활성화 */
             padding: 20px;
         }
 
@@ -364,21 +367,18 @@
             </div>
         </div>
 
-        <!-- 재고 카드 그리드 (DB에서 동적으로 로드됨) -->
         <div id="inventoryGrid" class="inventory-grid">
             <div style="text-align: center; padding: 40px; color: white;">
                 <h3>⏳ 재고 데이터를 불러오는 중...</h3>
             </div>
         </div>
 
-        <!-- 재고가 없을 때 표시 (현재는 숨김) -->
         <div class="empty-state" style="display: none;" id="emptyState">
             <h2>재고가 없습니다</h2>
             <p>➕ 재고 추가 버튼을 눌러 새로운 재고를 추가하세요.</p>
         </div>
     </div>
 
-    <!-- 맵 모달 -->
     <div id="mapModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeMapModal()">&times;</span>
@@ -725,12 +725,15 @@
             }
         }
 
-        // 재고 관리용 맵 표시 함수
+        // 재고 관리용 맵 표시 함수 (3배 확대 버전 - 수정됨)
         function displayInventoryMap(mapData, targetLocation) {
             const mapDisplay = document.getElementById('mapDisplay');
-            const mapArray = mapData.map;
             
-            console.log('맵 배열:', mapArray); // 디버깅용
+            // 데이터 구조 확인 (Grid 추출)
+            let mapArray = mapData.map;
+            if (mapArray && mapArray.grid) {
+                mapArray = mapArray.grid;
+            }
             
             if (!mapArray || !Array.isArray(mapArray) || mapArray.length === 0) {
                 mapDisplay.innerHTML = '<div style="color: red;">🗺️ 맵 데이터가 없습니다.</div>';
@@ -740,68 +743,86 @@
             const height = mapArray.length;
             const width = mapArray[0].length;
             
-            // 특징점 위치를 수집하여 왼쪽 위부터 오른쪽 아래 순서로 번호 매기기
+            // 특징점 위치 수집
             const featurePositions = [];
-            for (let y = height - 1; y >= 0; y--) {  // 위에서 아래로
-                for (let x = 0; x < width; x++) {    // 왼쪽에서 오른쪽으로
+            for (let y = height - 1; y >= 0; y--) { 
+                for (let x = 0; x < width; x++) {    
                     if (mapArray[y][x] === 2) {
                         featurePositions.push({x: x, y: y, displayY: height - 1 - y});
                     }
                 }
             }
             
+            // Grid 셀 크기 120px로 3배 확대
             let mapHtml = `
                 <div style="
                     display: grid;
-                    grid-template-columns: repeat(${width}, minmax(40px, 1fr));
-                    grid-template-rows: repeat(${height}, minmax(40px, 1fr));
-                    gap: 3px;
+                    grid-template-columns: repeat(${width}, minmax(120px, 1fr));
+                    grid-template-rows: repeat(${height}, minmax(120px, 1fr));
+                    gap: 5px;
                     justify-content: center;
                     margin: 0;
-                    font-size: 32px;
                     width: 100%;
                     height: 100%;
-                    max-width: 90vw;
-                    max-height: 60vh;
+                    overflow: auto; 
                 ">
             `;
             
-            // 위에서 아래로 표시 (배열의 마지막 행부터 첫 번째 행 순서)
+            // 위에서 아래로 표시
             for (let y = height - 1; y >= 0; y--) {
                 for (let x = 0; x < width; x++) {
                     const value = mapArray[y][x];
                     let content = '';
-                    let style = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 28px; position: relative; min-width: 40px; min-height: 40px;';
-                    // 값에 따른 스타일 및 아이콘 설정
+                    
+                    // 폰트 크기 84px, 셀 크기 120px 로 변경
+                    let style = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 84px; position: relative; min-width: 120px; min-height: 120px; border-radius: 8px;';
+                    
                     if (value === 0) {
-                        content = '⬜';
-                        style += ' background: #f8f9fa;';
+                        content = ''; 
+                        style += ' background: #f0f2f5; border: 2px solid #e1e4e8;';
                     } else if (value === 1) {
-                        content = '🟢';
-                        style += ' background: #d4edda;';
+                        content = ''; 
+                        style += ' background: #d4edda; border: 2px solid #c3e6cb;';
                     } else if (value === -1) {
-                        content = '⬛';
-                        style += ' background: #333; color: #fff;';
+                        content = ''; 
+                        style += ' background: #4a5568; border: 2px solid #2d3748;';
                     } else if (value === 2) {
                         const featureIndex = featurePositions.findIndex(pos => 
                             pos.x === x && pos.displayY === (height - 1 - y)
                         );
                         const featureNumber = featureIndex + 1;
-                        content = `🔶<span style="position: absolute; top: -8px; right: -8px; background: white; border-radius: 50%; width: 24px; height: 24px; font-size: 16px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #333; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${featureNumber}</span>`;
-                        style += ' background: #fff3cd;';
+                        
+                        // 번호표(Badge) 크기도 3배 확대 (60px)
+                        content = `🔶<span style="
+                            position: absolute; 
+                            top: -15px; 
+                            right: -15px; 
+                            background: white; 
+                            border-radius: 50%; 
+                            width: 60px; 
+                            height: 60px; 
+                            font-size: 36px; 
+                            display: flex; 
+                            align-items: center; 
+                            justify-content: center; 
+                            font-weight: bold; 
+                            border: 4px solid #333; 
+                            box-shadow: 0 4px 8px rgba(0,0,0,0.3); 
+                            color: #333;
+                        ">${featureNumber}</span>`;
+                        style += ' background: #fff3cd; border: 2px solid #ffeeba;';
                     } else if (value === 3) {
                         content = '🤖';
-                        style += ' background: #cce5ff;';
+                        style += ' background: #cce5ff; border: 2px solid #b8daff;';
                     } else {
                         content = value;
-                        style += ' background: #f8f9fa;';
+                        style += ' background: #fff;';
                     }
                     mapHtml += `<div style="${style}">${content}</div>`;
                 }
             }
             
             mapHtml += '</div>';
-            
             mapDisplay.innerHTML = mapHtml;
         }
     </script>

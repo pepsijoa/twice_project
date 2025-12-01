@@ -5,6 +5,7 @@ import socket
 import time
 import threading
 import json
+import datetime # datetime 모듈 상단으로 이동
 from dotenv import load_dotenv
 import database as db
 
@@ -18,7 +19,7 @@ SOCKET_PATH = "/tmp/flaskToCPP.sock"
 socket_lock = threading.Lock()
 
 # 안전한 소켓 통신 헬퍼 함수
-def safe_socket_communication(command, buffer_size=1024, timeout=5):
+def safe_socket_communication(command, buffer_size=4096, timeout=5):
     with socket_lock: 
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
@@ -26,7 +27,17 @@ def safe_socket_communication(command, buffer_size=1024, timeout=5):
                 client.connect(SOCKET_PATH)
                 client.send(command.encode('utf-8'))
                 
-                response = client.recv(buffer_size).decode('utf-8')
+                data = b""
+                while True:
+                    try:
+                        chunk = client.recv(buffer_size)
+                        if not chunk:
+                            break
+                        data += chunk
+                    except socket.timeout:
+                        break # 타임아웃 시 받은 데이타까지만 처리
+                
+                response = data.decode('utf-8')
                 return True, response
         except socket.timeout:
             return False, "소켓 연결 시간 초과"
@@ -88,7 +99,7 @@ def search_inventory_api():
         print(f"재고 검색 오류: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-# 재고 추가 API
+# 재고 추가 API (복원됨)
 @app.route('/api/inventory', methods=['POST'])
 def add_inventory_api():
     """새 재고 추가"""
@@ -217,51 +228,43 @@ def remapping():
         print(f"리매핑 신호 전송 실패: {response}")
         return jsonify({'status': 'error', 'message': response})
 
-# 카메라 촬영 라우트
+# 카메라 촬영 라우트 (수정 및 정리됨)
 @app.route('/camera', methods=['POST'])
 def camera_shot():
     """카메라 촬영 요청 처리"""
     try:
-        print("카메라 촬영 요청 시작")
-        success, response = safe_socket_communication('featureShot', timeout=10)
+        data = request.get_json()
+        
+        # 1. 이름 가져오기 및 기본값 설정
+        user_input_name = data.get('name')
+        if not user_input_name:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            user_input_name = f"Point_{timestamp}"
+            
+        # 2. 공백을 언더바(_)로 치환하여 안전한 문자열 생성
+        safe_name = user_input_name.replace(" ", "_")
+        
+        # 3. C++로 보낼 명령어 조합
+        command = f"featureShot/{safe_name}"
+        print(f"📷 카메라 촬영 요청 전송: {command}")
+        
+        # 4. 소켓 통신
+        success, response = safe_socket_communication(command, timeout=10)
         
         if not success:
-            print(f"카메라 촬영 요청 실패: {response}")
-            return jsonify({
-                'status': 'error', 
-                'message': f'카메라 요청 전송 실패: {response}'
-            })
-        
-        print(f"카메라 응답 받음: '{response}'")
-        
-        # C++에서의 응답 처리
+            return jsonify({'status': 'error', 'message': f'전송 실패: {response}'})
+            
+        # 5. 응답 처리
         if response.strip() == "FEATURESHOT_OK":
-            print("카메라 촬영 성공")
-            return jsonify({
-                'status': 'success',
-                'message': '카메라 촬영 성공',
-                'result': 'FEATURESHOT_OK'
-            })
+            return jsonify({'status': 'success', 'message': '촬영 성공', 'name': safe_name})
         elif response.strip() == "FEATURESHOT_FAIL":
-            print("카메라 촬영 실패")
-            return jsonify({
-                'status': 'failed',
-                'message': '카메라 촬영 실패',
-                'result': 'FEATURESHOT_FAIL'
-            })
+            return jsonify({'status': 'failed', 'message': '촬영 실패'})
         else:
-            print(f"예상치 못한 카메라 응답: '{response}'")
-            return jsonify({
-                'status': 'error',
-                'message': f'예상치 못한 응답: {response}'
-            })
-    
+            return jsonify({'status': 'error', 'message': f'예상치 못한 응답: {response}'})
+            
     except Exception as e:
-        print(f"카메라 촬영 중 오류 발생: {str(e)}")
-        return jsonify({
-            'status': 'error', 
-            'message': f'카메라 촬영 중 오류: {str(e)}'
-        })
+        print(f"카메라 촬영 중 오류 발생: {e}")
+        return jsonify({'status': 'error', 'message': str(e)})
 
 # 맵 데이터 가져오기 라우트
 @app.route('/get-map', methods=['GET'])
@@ -303,7 +306,7 @@ def cert_guide():
     """인증서 설치 가이드"""
     import socket
     hostname = socket.gethostname()
-    # 외부 IP 주소 고정
+    # 외부 IP 주소 고정 (필요시 변경)
     ip = "112.214.181.224"
     
     return f'''

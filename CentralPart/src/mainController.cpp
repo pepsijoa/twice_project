@@ -8,6 +8,7 @@ module;
 #include <thread>
 #include <condition_variable>
 #include <chrono>
+#include <sstream>
 
 module mainController;
 
@@ -102,16 +103,17 @@ void MainController::serverThreadFunction()
                 || receivedData == "right"){
                 if(mapper->IsMappingDone()){    
                     webCtrl->send_response("MAPPINGDONE");
-                    continue;
-
-                    
+                    continue;   
                 }
                 else{
-                    //bool moveSuccess = moveCtrl->processCommand(receivedData);
-                    bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
+                    bool moveSuccess = moveCtrl->processCommand(receivedData);
+                    //bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
                     if(moveSuccess){
                         webCtrl->send_response("ACK");
                         pushMessage(1, receivedData);
+                    }
+                    else{
+                        webCtrl->send_response("MOVEFAIL");
                     }
                     continue;
                 }   
@@ -275,35 +277,38 @@ std::string MainController::interpretMessage()
 
 std::string MainController::getMapAsJson()
 {
+    // 데이터 읽는 동안 맵이 변경되지 않도록 Mutex 잠금 권장
+    // std::lock_guard<std::mutex> lock(mapperMutex); 
+
     auto mapData = mapper->getMap();
     auto featureData = mapper->getFeatureInfo();
 
     if (mapData.empty()) {
         return "NO_MAP";
     }
-    
-    std::string json = "[";
+
+    std::stringstream ss;
+    ss << "{ \"grid\": [";
+
     for (size_t i = 0; i < mapData.size(); ++i) {
-        if (i > 0) json += ",";
-        json += "[";
+        if (i > 0) ss << ",";
+        ss << "[";
         for (size_t j = 0; j < mapData[i].size(); ++j) {
-            if (j > 0) json += ",";
-            json += std::to_string(mapData[i][j]);
+            if (j > 0) ss << ",";
+            ss << std::to_string(mapData[i][j]);
         }
-        json += "]";
+        ss << "]";
     }
-    json += "]";
+    ss << "], \"features\": [";
 
-    // featureData를 {y,x,name};{y,x,name};... 형태로 변환
-    std::string featureStr;
     for (size_t i = 0; i < featureData.size(); ++i) {
-        if (i > 0) featureStr += ";";
-        featureStr += "{" + std::to_string(featureData[i].position.first) + "," +
-                      std::to_string(featureData[i].position.second) + "," +
-                      featureData[i].name + "}";
+        if (i > 0) ss << ",";
+        ss << "{\"y\": " << featureData[i].position.first 
+           << ",\"x\": " << featureData[i].position.second 
+           << ",\"name\": \"" << featureData[i].name << "\"}";
     }
+    
+    ss << "] }";
 
-    // mapData 뒤에 '/'와 featureData 문자열을 붙여 반환
-    json += "/" + featureStr;
-    return json;
+    return ss.str();
 }
