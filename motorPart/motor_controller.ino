@@ -70,7 +70,8 @@ typedef enum {
 
 volatile MotorCommand_t g_currentMotorState = CMD_STOP;
 volatile bool g_isObstacleDetected = false; // E-STOP 상태 플래그
-
+volatile bool g_rx_error = false;
+volatile uint8_t g_robot_status = 0x01; // 0x01:대기/이동중, 0x08:도착완료
 /**
  * @brief MotorCommand_t enum 값을 문자열로 변환하는 헬퍼 함수
  * @param cmd 명령어 enum 값
@@ -204,14 +205,15 @@ void prvRX(void *pvParameters) {
       */
       xQueueOverwrite(xMotorQueue, &cmd_to_send);
       
-      // 명령 수신 직후 즉시 응답 전송
-      uint8_t response_byte;
-      if (g_isObstacleDetected) {
-        response_byte = 0b01101110; // 'n' - 장애물 감지됨
+      // ★ 여기가 핵심 ★
+      if (cmd_to_send != CMD_INVALID) {
+         // 1. 정상 명령: 에러 끄고, 큐에 넣음
+         g_rx_error = false; 
+         xQueueOverwrite(xMotorQueue, &cmd_to_send);
       } else {
-        response_byte = 0b01111001; // 'y' - 정상
+         // 2. 이상한 명령: 에러 켜고, 큐에는 아무것도 안 넣음 (무시)
+         g_rx_error = true;
       }
-      Serial.write(response_byte);
     }
     // 이 태스크를 잠시(100ms) 재워서 다른 태스크(MotorTask)가 실행될 시간을 줌
     vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -338,21 +340,24 @@ void prvSensorandTX(void *pvParameters) {
       g_isObstacleDetected = false;  // 전역 플래그 해제
     }
 
-    Serial.print("Heading: ");
-    Serial.print(current_angle_deg, 1); // 소수점 첫째 자리까지 출력
+    //Serial.print("Heading: ");
+    //Serial.print(current_angle_deg, 1); // 소수점 첫째 자리까지 출력
     
     px.value = g_robot_x;
     py.value = g_robot_y;
     ptheta.value = g_robot_theta;
 
     if (isEmergency) tx_byte = 0x02;
-    else tx_byte = 0x01;
+    else if (g_rx_error) tx_byte = 0x04;
+    else tx_byte = g_robot_status; 
 
     Serial.write(0xAA);        // 설정을 안하면 1 byte 
     Serial.write(0xBB);
+    /*
     Serial.write(px.bytes, sizeof(px.bytes)); // px.byte 를 4 byte 만큼 전송 
     Serial.write(py.bytes, sizeof(px.bytes));
     Serial.write(ptheta.bytes, sizeof(px.bytes));
+    */
     Serial.write(tx_byte);
 
     unsigned long endTime = micros();   // 2. 끝 시간 기록 -> Task Frequency 설정 위함 
@@ -369,71 +374,62 @@ double Input, Output, Setpoint;
 double Kp = 1.5, Ki = 0.01, Kd = 0.5; 
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 
-//회전
 void rotate_sequence() {
-    // 1. PID 설정
     Setpoint = g_target_heading_deg;
     myPID.SetMode(AUTOMATIC);
-    myPID.SetOutputLimits(-255, 255); // PWM 출력 범위
+    myPID.SetOutputLimits(-200, 200); // PWM 최소값 확보 (-255~255가 아니라)
     
-    float angle_tolerance = 5.0; // 5도 이내 진입 시 정지
+    // 타임아웃 추가 (예: 3초 지나면 강제 종료)
+    unsigned long start_time = millis();
 
-    // 2. 메인 제어 루프: 목표에 도달할 때까지 반복
-    while (fabs(g_target_heading_deg - mpu.getAngleZ()) > angle_tolerance) {
-
-        // if (g_isObstacleDetected) {
-        // Motor_STOP();
-        // return;
-        // }
+    while (fabs(g_target_heading_deg - mpu.getAngleZ()) > 5.0) {
         
-        // A. 입력 갱신 (피드백)
+        // 3초 타임아웃 (무한루프 방지)
+        if (millis() - start_time > 3000) break;
+
         Input = mpu.getAngleZ();
-        
-        // B. PID 계산 (출력 값 Output 갱신)
         myPID.Compute(); 
         
-        // C. 출력 적용 (모터 제어)
-        if (Output > 0) {
-            // 양수 출력: 시계 방향 (오른쪽 회전)
-            Motor_RIGHT(abs(Output)); // 한쪽 모터만 ON 또는 차동 구동
-        } else if (Output < 0) {
-            // 음수 출력: 반시계 방향 (왼쪽 회전)
-            Motor_LEFT(abs(Output)); // 한쪽 모터만 ON 또는 차동 구동
-        } else {
-            Motor_STOP();
-        }
+        int pwm_val = abs(Output);
+        if (pwm_val < 100) pwm_val = 100; // 최소 기동 토크
 
-        // D. 태스크 지연 (주기성 확보)
-        vTaskDelay(10 / portTICK_PERIOD_MS); 
+        if (Output > 0) Motor_RIGHT(pwm_val);
+        else Motor_LEFT(pwm_val);
+
+        vTaskDelay(20 / portTICK_PERIOD_MS); 
     }
-    Motor_STOP(); // 최종 정지
+    Motor_STOP();
 }
 
 //이동
-void move_sequence() {
-  digitalWrite(MOTOR_A_IN1, HIGH);
-  digitalWrite(MOTOR_A_IN2, LOW);
+void move_sequence(float target_cm = 10.0) {
+  
+  g_robot_status = 0x01; 
 
-  digitalWrite(MOTOR_B_IN1, HIGH);
-  digitalWrite(MOTOR_B_IN2, LOW);
+  // 2. 목표 펄스 계산 ( 10cm / 펄스당거리 )
+  long target_pulses = (long)(target_cm / DIST_PER_PULSE);
+  long start_count = g_ENCODER_LEFT_COUNT; 
+  unsigned long start_time = millis();
 
-  long target_pulses = 1000; // 예시: 1000 펄스를 한 칸으로 가정
-  long start_count = g_ENCODER_LEFT_COUNT; // 왼쪽 엔코더 카운트 사용
+  Motor_UP(180); 
 
-  // (주의: 이 루프는 FreeRTOS Task 내에서 vTaskDelay를 사용해야 함)
-  while (g_ENCODER_LEFT_COUNT - start_count < target_pulses) {
-      // E-STOP 체크를 위해 prvSensorandTX에게 CPU를 양보
-      vTaskDelay(10 / portTICK_PERIOD_MS); 
-
+  while (abs(g_ENCODER_LEFT_COUNT - start_count) < target_pulses) {
+      
+      // 1. E-STOP 체크
       if (g_isObstacleDetected) {
         Motor_STOP();
         return;
-        }
-  }
-  
-  // 3. 최종 정지
-  Motor_STOP();
+      }
+           
+      // 2. 타임아웃 체크 (예: 10초)
+      if (millis() - start_time > 10000) {
+        break; // 강제 탈출
+      }
 
+      vTaskDelay(10 / portTICK_PERIOD_MS); 
+  }
+  Motor_STOP();
+  g_robot_status = 0x08;
 }
 
 void motor_speed(int spd)  

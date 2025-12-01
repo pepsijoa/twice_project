@@ -11,12 +11,15 @@ module;
 module moveController;
 
 #pragma pack(push, 1) // 1 byte packing 을 통해 빈 공간 없이 데이터 받기 
+
+/*
 struct RobotDataPacket {
     float x;
     float y;
     float theta;
     uint8_t status;
 };
+*/
 
 #pragma pack(pop)
 
@@ -141,49 +144,61 @@ int MoveController::sendCommandToArduino(uint8_t cmd) {
         return 'E'; // Error
     }
 
+    // 2. 응답 패킷 수신 (0xAA -> 0xBB -> Status)
     uint8_t byte_in;
     int attempt = 0;
-
-    // 헤더(0xAA, 0xBB)를 찾을 때까지 읽음 (최대 100바이트까지 탐색)
+    
+    // 최대 100번 시도 (타임아웃 방지)
     while (attempt < 100) {
+        // 1바이트 읽기
         if (read(serial_fd, &byte_in, 1) != 1) {
             attempt++;
+            usleep(1000); // 1ms 대기 (너무 빨리 돌면 CPU 낭비)
             continue;
         }
 
-        // 첫 번째 헤더 발견
+        // [Header 1] 0xAA 발견?
         if (byte_in == 0xAA) {
+            // 그 다음 바이트 읽기
             if (read(serial_fd, &byte_in, 1) == 1) {
-                // 두 번째 헤더 발견 -> 진짜 데이터 시작
+                // [Header 2] 0xBB 발견?
                 if (byte_in == 0xBB) {
-                    // 구조체 크기만큼 데이터 읽기 (13 바이트)
-                    RobotDataPacket packet;
-                    uint8_t buffer[sizeof(RobotDataPacket)];
                     
-                    // read는 한 번에 다 못 읽을 수도 있으므로 루프로 처리하거나
-                    // 간단하게 read 함수 호출 (여기선 간단히 처리)
-                    int bytes_read = 0;
-                    int total_bytes = sizeof(RobotDataPacket);
-                    
-                    while(bytes_read < total_bytes) {
-                        int r = read(serial_fd, buffer + bytes_read, total_bytes - bytes_read);
-                        // read(int fd, void* buf, size_t nbytes); fd = 데이터 전송 대상, 수신 데이터 저장, 수신 최대 byte 수 
-                        if (r <= 0) break;
-                        bytes_read += r;
-                    }
-
-                    if (bytes_read == total_bytes) {
-                        // 버퍼를 구조체로 변환
-                        std::memcpy(&packet, buffer, sizeof(RobotDataPacket));
-
-                        return packet.status; // 상태값 반환
+                    // [Data] 마지막 3번째 바이트 (Status) 읽기
+                    uint8_t status_byte;
+                    if (read(serial_fd, &status_byte, 1) == 1) {
+                        
+                        // 성공! 상태값 반환 (0x01, 0x02, 0x08 등)
+                        // std::cout << "Arduino Status: " << (int)status_byte << std::endl;
+                        return (int)status_byte; 
                     }
                 }
             }
         }
         attempt++;
     }
-
-    std::cerr << "MoveController: 유효한 패킷을 찾지 못함 (Timeout)" << std::endl;
     return -1; // 에러
 }
+
+/*
+RobotDataPacket packet;
+uint8_t buffer[sizeof(RobotDataPacket)];
+
+// read는 한 번에 다 못 읽을 수도 있으므로 루프로 처리하거나
+// 간단하게 read 함수 호출 (여기선 간단히 처리)
+int bytes_read = 0;
+int total_bytes = sizeof(RobotDataPacket);
+
+while(bytes_read < total_bytes) {
+    int r = read(serial_fd, buffer + bytes_read, total_bytes - bytes_read);
+    // read(int fd, void* buf, size_t nbytes); fd = 데이터 전송 대상, 수신 데이터 저장, 수신 최대 byte 수 
+    if (r <= 0) break;
+    bytes_read += r;
+}
+
+if (bytes_read == total_bytes) {
+    // 버퍼를 구조체로 변환
+    std::memcpy(&packet, buffer, sizeof(RobotDataPacket));
+
+    return packet.status; // 상태값 반환
+}*/
