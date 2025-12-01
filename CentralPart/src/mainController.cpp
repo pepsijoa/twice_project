@@ -87,7 +87,7 @@ void MainController::serverThreadFunction()
         if(!webCtrl->accept_connection())
         {
             std::cerr << "클라이언트 연결 실패, 재시도..." << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
             continue;
         }
 
@@ -106,7 +106,13 @@ void MainController::serverThreadFunction()
                     continue;   
                 }
                 else{
+                    
+                    
+                    std::cout << "Before " << receivedData << std::endl;
+
                     bool moveSuccess = moveCtrl->processCommand(receivedData);
+                    
+                    std::cout << "After " << receivedData << std::endl;
                     //bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
                     if(moveSuccess){
                         webCtrl->send_response("ACK");
@@ -115,6 +121,7 @@ void MainController::serverThreadFunction()
                     else{
                         webCtrl->send_response("MOVEFAIL");
                     }
+
                     continue;
                 }   
             }
@@ -122,13 +129,27 @@ void MainController::serverThreadFunction()
                 std::string featureName = receivedData.substr(std::string("featureShot/").length());
                 std::cout << "특징점 촬영 요청, 이름: " << featureName << std::endl;
 
-                bool camSuccess = true; // 실제 촬영 로직으로 대체 가능
-
-                if(camSuccess)
+                //bool checkstored = moveCtrl->processCommand("mapping_feature");
+                bool camSuccess = false;
+                bool checkstored = true;
+                
+            
+                if(checkstored == true)
                 {
-                    pushMessage(2, receivedData); // 필요시 featureName만 push 가능
+                    camSuccess = camCtrl->CameraShot();    
+                    if(camSuccess)
+                    {
+                        pushMessage(2, receivedData); // 필요시 featureName만 push 가능
+                    }
+                    else{
+                        webCtrl->send_response("FEATURESHOT_FAIL");
+                        continue;
+                    }
                 }
-
+                else{
+                    webCtrl->send_response("FEATURESHOT_FAIL");
+                    continue;
+                }
                 webCtrl->send_response("FEATURESHOT_OK");
                 continue;
             }
@@ -143,10 +164,13 @@ void MainController::serverThreadFunction()
                 webCtrl->send_response(mapJson.c_str());
                 continue;
             }
+
+
+
         }
         
-        // 각 요청 처리 후 잠시 대기 (다음 연결을 위해)
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // 각 요청 처리 후 즉시 다음 연결 대기 (대기 시간 최소화)
+        // std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 }
 

@@ -19,34 +19,46 @@ SOCKET_PATH = "/tmp/flaskToCPP.sock"
 socket_lock = threading.Lock()
 
 # 안전한 소켓 통신 헬퍼 함수
-def safe_socket_communication(command, buffer_size=4096, timeout=5):
+def safe_socket_communication(command, buffer_size=4096, timeout=5, max_retries=3):
     with socket_lock: 
-        try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-                client.settimeout(timeout)  
-                client.connect(SOCKET_PATH)
-                client.send(command.encode('utf-8'))
+        for attempt in range(max_retries):
+            try:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                    client.settimeout(timeout)  
+                    client.connect(SOCKET_PATH)
+                    client.send(command.encode('utf-8'))
+                    
+                    data = b""
+                    while True:
+                        try:
+                            chunk = client.recv(buffer_size)
+                            if not chunk:
+                                break
+                            data += chunk
+                        except socket.timeout:
+                            break # 타임아웃 시 받은 데이타까지만 처리
+                    
+                    response = data.decode('utf-8')
+                    return True, response
+                    
+            except socket.timeout:
+                if attempt < max_retries - 1:
+                    time.sleep(0.1 * (attempt + 1))  # 점진적 대기
+                    continue
+                return False, "소켓 연결 시간 초과"
                 
-                data = b""
-                while True:
-                    try:
-                        chunk = client.recv(buffer_size)
-                        if not chunk:
-                            break
-                        data += chunk
-                    except socket.timeout:
-                        break # 타임아웃 시 받은 데이타까지만 처리
+            except FileNotFoundError:
+                return False, f"소켓 파일 없음 ({SOCKET_PATH})"
                 
-                response = data.decode('utf-8')
-                return True, response
-        except socket.timeout:
-            return False, "소켓 연결 시간 초과"
-        except FileNotFoundError:
-            return False, f"({SOCKET_PATH}) 문제"
-        except OSError as e:
-            return False, f"소켓 연결 오류: {str(e)}"
-        finally:
-            time.sleep(0.05)  # 50ms로 단축
+            except OSError as e:
+                # Errno 11 (Resource temporarily unavailable) 재시도
+                if e.errno == 11 and attempt < max_retries - 1:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                return False, f"소켓 연결 오류: {str(e)}"
+                
+            finally:
+                time.sleep(0.02)  # 20ms로 단축
             
 @app.after_request
 def add_security_headers(response):
@@ -170,6 +182,15 @@ def get_inventory_by_location_api(location):
 def service_worker():
     return send_from_directory('static', 'sw.js', mimetype='application/javascript')
 
+# Favicon 라우트
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(
+        os.path.join(app.root_path, 'static'),
+        'favicon.ico',
+        mimetype='image/vnd.microsoft.icon'
+    )
+
 # 방향 버튼 제어 라우트
 @app.route('/control', methods=['POST'])
 def control():
@@ -188,6 +209,13 @@ def control():
                 'direction': direction, 
                 'response': response,
                 'message': '현재 매핑은 모두 완료되었습니다.'
+            })
+        elif response == "MOVEFAIL":
+            return jsonify({
+                'status': 'move_fail', 
+                'direction': direction, 
+                'response': response,
+                'message': '로봇이 이동할 수 없습니다. 장애물을 확인하세요.'
             })
         else:
             return jsonify({'status': 'success', 'direction': direction, 'response': response})
@@ -285,6 +313,72 @@ def get_map():
             return jsonify({'status': 'no_map', 'message': 'Map not ready'})
     else:
         return jsonify({'status': 'no_map', 'message': 'Map not available'})
+
+# Feature 목록 가져오기 API
+@app.route('/api/features', methods=['GET'])
+def get_features():
+    """맵에서 feature(특징점) 목록 추출"""
+    try:
+        success, response = safe_socket_communication('requestMap', buffer_size=4096)
+        
+        if not success:
+            return jsonify({'status': 'error', 'message': '맵 데이터를 가져올 수 없습니다.'})
+        
+        if response and response != "NO_MAP":
+            try:
+                map_data = json.loads(response)
+                features = []
+                
+                # features 배열이 있는 경우
+                if isinstance(map_data, dict) and 'features' in map_data:
+                    features = map_data['features']
+                    # features 배열에서 name만 추출
+                    feature_names = [f.get('name', f'Feature_{i+1}') for i, f in enumerate(features)]
+                    return jsonify({'status': 'success', 'features': feature_names})
+                else:
+                    return jsonify({'status': 'no_features', 'message': '등록된 특징점이 없습니다.', 'features': []})
+                    
+            except json.JSONDecodeError:
+                return jsonify({'status': 'error', 'message': '맵 데이터 파싱 실패'})
+        else:
+            return jsonify({'status': 'no_map', 'message': '맵이 생성되지 않았습니다.', 'features': []})
+            
+    except Exception as e:
+        print(f"Feature 목록 조회 오류: {e}")
+        return jsonify({'status': 'error', 'message': str(e)})
+
+# 로봇을 특정 위치로 이동시키는 라우트
+@app.route('/move-to', methods=['POST'])
+def move_to_location():
+    """로봇을 특정 feature 위치로 이동"""
+    try:
+        data = request.get_json()
+        location = data.get('location')
+
+        command = f"MoveTo/"
+        #print(f"🚀 로봇 이동 명령 전송: {command} (위치: {location})")
+        
+        success, response = safe_socket_communication(command, timeout=5)
+        
+        if not success:
+            return jsonify({'status': 'error', 'message': f'전송 실패: {response}'})
+        
+        # C++ 응답 처리
+        if response.strip() == "MOVETO_OK":
+            return jsonify({
+                'status': 'success', 
+                'message': f'{location} 위치로 이동 시작',
+                'location': location,
+                'coordinates': {'x': x, 'y': y}
+            })
+        elif response.strip() == "MOVETO_FAIL":
+            return jsonify({'status': 'failed', 'message': '이동 불가능한 위치입니다.'})
+        else:
+            return jsonify({'status': 'error', 'message': f'예상치 못한 응답: {response}'})
+            
+    except Exception as e:
+        print(f"로봇 이동 중 오류 발생: {e}")
+        return jsonify({'status': 'error', 'message': str(e)})
 
 # 인증서 다운로드 라우트
 @app.route('/download-cert')

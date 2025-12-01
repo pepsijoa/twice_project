@@ -10,12 +10,10 @@ module;
 
 module moveController;
 
-#pragma pack(push, 1) // 1 byte packing 을 통해 빈 공간 없이 데이터 받기 
+#pragma pack(push, 1) 
 struct RobotDataPacket {
-    float x;
-    float y;
-    float theta;
-    uint8_t status;
+    uint8_t status;     // 1 byte
+    uint32_t timestamp; // 4 bytes (아두이노의 unsigned long)
 };
 
 #pragma pack(pop)
@@ -108,6 +106,9 @@ bool MoveController::processCommand(const std::string& msg) {
 
     // 웹 메시지 -> 아두이노 1바이트 명령으로 '번역'
     if (msg == "up")        command_to_arduino = 0b11111000;
+    else if (msg == "mapping_feature") command_to_arduino = 0b10010000;
+    // feature에 도착하면 바로 전송 됨.
+    else if (msg == "mapped_feature") command_to_arduino = 0b10100000;
     else if (msg == "down") command_to_arduino = 0b11110100;
     else if (msg == "left") command_to_arduino = 0b11110010;
     else if (msg == "right") command_to_arduino = 0b11110001;
@@ -117,7 +118,7 @@ bool MoveController::processCommand(const std::string& msg) {
     }
 
     // 아두이노로 명령을 보내고, "YES/NO/Error" 응답을 받음
-    //std::cout << "MoveController: 아두이노로 '" << command_to_arduino << "' 전송 및 응답 대기..." << std::endl;
+    std::cout << "MoveController: 아두이노로 '" << command_to_arduino << "' 전송 및 응답 대기..." << std::endl;
     int robot_status = sendCommandToArduino(command_to_arduino);
     
     // 0x01 = Activate 0x02 = Sensor STOP
@@ -129,7 +130,7 @@ bool MoveController::processCommand(const std::string& msg) {
         std::cout << "MoveController: 아두이노 응답 [NO] (장애물)" << std::endl;
         return false;
 
-    } else { 
+    }else { 
         std::cout << "MoveController: 아두이노 통신 오류" << std::endl;
         return false;
     }
@@ -141,49 +142,79 @@ int MoveController::sendCommandToArduino(uint8_t cmd) {
         return 'E'; // Error
     }
 
+    // 2. 응답 패킷 수신 (0xAA -> 0xBB -> Status)
     uint8_t byte_in;
     int attempt = 0;
-
-    // 헤더(0xAA, 0xBB)를 찾을 때까지 읽음 (최대 100바이트까지 탐색)
-    while (attempt < 100) {
+    
+    // 최대 200번 시도 (타임아웃 방지)
+    while (attempt < 200) {
+        // 1바이트 읽기
         if (read(serial_fd, &byte_in, 1) != 1) {
+            std::cout << "reading \n";
             attempt++;
+            usleep(1000); // 1ms 대기 (너무 빨리 돌면 CPU 낭비)
             continue;
         }
 
-        // 첫 번째 헤더 발견
+        // [Header 1] 0xAA 발견?
         if (byte_in == 0xAA) {
+            // 그 다음 바이트 읽기
+            std::cout << "MoveController: Header 1 (0xAA) 수신" << std::endl;
             if (read(serial_fd, &byte_in, 1) == 1) {
-                // 두 번째 헤더 발견 -> 진짜 데이터 시작
+                // [Header 2] 0xBB 발견?
                 if (byte_in == 0xBB) {
-                    // 구조체 크기만큼 데이터 읽기 (13 바이트)
+                    std::cout << "MoveController: Header 2 (0xBB) 수신" << std::endl;
                     RobotDataPacket packet;
-                    uint8_t buffer[sizeof(RobotDataPacket)];
-                    
-                    // read는 한 번에 다 못 읽을 수도 있으므로 루프로 처리하거나
-                    // 간단하게 read 함수 호출 (여기선 간단히 처리)
-                    int bytes_read = 0;
+                    uint8_t buffer[sizeof(RobotDataPacket)]; // 5바이트
                     int total_bytes = sizeof(RobotDataPacket);
-                    
+                    int bytes_read = 0;
+
+                    // 5바이트(Status + Time)를 읽음
                     while(bytes_read < total_bytes) {
                         int r = read(serial_fd, buffer + bytes_read, total_bytes - bytes_read);
-                        // read(int fd, void* buf, size_t nbytes); fd = 데이터 전송 대상, 수신 데이터 저장, 수신 최대 byte 수 
-                        if (r <= 0) break;
+                        if (r <= 0) {
+                            usleep(1000); 
+                            continue; 
+                        }
                         bytes_read += r;
                     }
 
-                    if (bytes_read == total_bytes) {
-                        // 버퍼를 구조체로 변환
-                        std::memcpy(&packet, buffer, sizeof(RobotDataPacket));
+                    // 구조체로 변환
+                    std::memcpy(&packet, buffer, total_bytes);
 
-                        return packet.status; // 상태값 반환
-                    }
+                    // [출력] 터미널에 상태와 시간 표시
+                    std::cout << "[Arduino] " 
+                              << "Stat:" << (int)packet.status << " "
+                              << "Time:" << packet.timestamp << " us" << std::endl;
+
+                    return (int)packet.status; // 상태값 반환
                 }
             }
         }
         attempt++;
     }
-
-    std::cerr << "MoveController: 유효한 패킷을 찾지 못함 (Timeout)" << std::endl;
     return -1; // 에러
 }
+
+/*
+RobotDataPacket packet;
+uint8_t buffer[sizeof(RobotDataPacket)];
+
+// read는 한 번에 다 못 읽을 수도 있으므로 루프로 처리하거나
+// 간단하게 read 함수 호출 (여기선 간단히 처리)
+int bytes_read = 0;
+int total_bytes = sizeof(RobotDataPacket);
+
+while(bytes_read < total_bytes) {
+    int r = read(serial_fd, buffer + bytes_read, total_bytes - bytes_read);
+    // read(int fd, void* buf, size_t nbytes); fd = 데이터 전송 대상, 수신 데이터 저장, 수신 최대 byte 수 
+    if (r <= 0) break;
+    bytes_read += r;
+}
+
+if (bytes_read == total_bytes) {
+    // 버퍼를 구조체로 변환
+    std::memcpy(&packet, buffer, sizeof(RobotDataPacket));
+
+    return packet.status; // 상태값 반환
+}*/

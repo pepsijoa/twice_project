@@ -9,6 +9,6 @@ export class CamController{
         int camera_id;
     public:
         CamController(int cam_id);
-        int CameraShot();
+        bool CameraShot();
         ~CamController();
 };

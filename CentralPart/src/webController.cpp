@@ -19,6 +19,12 @@ WebController::WebController(const char* socket_path)
         return;
     }
 
+    // 소켓 옵션 설정 (재사용 가능)
+    int opt = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        std::cerr << "SO_REUSEADDR 설정 실패" << std::endl;
+    }
+
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sun_family = AF_UNIX;
     strncpy(server_addr.sun_path, socket_path, sizeof(server_addr.sun_path) - 1);
@@ -30,7 +36,8 @@ WebController::WebController(const char* socket_path)
         return;
     }
 
-    if (listen(server_fd, 5) == -1) {
+    // listen backlog를 20으로 증가 (동시 연결 대기열 확대)
+    if (listen(server_fd, 20) == -1) {
         std::cerr << "리스닝 실패" << std::endl;
         close(server_fd);
         server_fd = -1;

@@ -20,6 +20,9 @@ const closeMappingPopupBtn = document.getElementById('close-mapping-popup');
 
 let mapUpdateInterval = null;
 let isMappingCompleted = false;
+// Poll intervals (milliseconds)
+const MAP_POLL_INTERVAL_ACTIVE = 3000; // normal active polling (3s)
+const MAP_POLL_INTERVAL_IDLE = 5000;   // when mapping completed / idle (5s)
 
 // ==========================================
 // 2. 핵심 로직: 맵 렌더링 및 데이터 가져오기
@@ -120,10 +123,24 @@ async function fetchMapData() {
 
 // 주기적 업데이트 제어
 function startMapUpdates() {
+    /*
     fetchMapData(); // 즉시 실행
     if (!mapUpdateInterval) {
         mapUpdateInterval = setInterval(fetchMapData, 500); // 0.5초마다 갱신
     }
+    */
+    // Always perform an immediate fetch
+    fetchMapData();
+
+    // Clear any existing interval to avoid duplicates
+    if (mapUpdateInterval) {
+        clearInterval(mapUpdateInterval);
+        mapUpdateInterval = null;
+    }
+
+    // Choose interval based on mapping state
+    const interval = isMappingCompleted ? MAP_POLL_INTERVAL_IDLE : MAP_POLL_INTERVAL_ACTIVE;
+    mapUpdateInterval = setInterval(fetchMapData, interval);
 }
 
 function stopMapUpdates() {
@@ -171,6 +188,8 @@ async function sendDirectionControl(direction) {
 
         if (data.status === 'mapping_done') {
             showMappingDonePopup();
+        } else if (data.status === 'move_fail') {
+            showObstaclePopup();
         } else if (data.status !== 'success') {
             console.error('이동 실패:', data.message);
         }
@@ -200,6 +219,8 @@ function setMappingButtonToCompleted() {
         mappingBtn.disabled = true;
         mappingBtn.style.opacity = '0.6';
         isMappingCompleted = true;
+        // Update polling interval to idle mode
+        startMapUpdates();
     }
 }
 
@@ -213,6 +234,20 @@ function showMappingDonePopup() {
 function hideMappingDonePopup() {
     if (mappingDonePopup) {
         mappingDonePopup.style.display = 'none';
+    }
+}
+
+function showObstaclePopup() {
+    const obstaclePopup = document.getElementById('obstacle-popup');
+    if (obstaclePopup) {
+        obstaclePopup.style.display = 'flex';
+    }
+}
+
+function hideObstaclePopup() {
+    const obstaclePopup = document.getElementById('obstacle-popup');
+    if (obstaclePopup) {
+        obstaclePopup.style.display = 'none';
     }
 }
 
@@ -297,6 +332,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.status === 'success') {
                     setMappingButtonToCompleted();
                     alert('매핑이 완료되었습니다.');
+                    // ensure polling switches to idle interval
+                    startMapUpdates();
                 }
             } catch (e) {
                 console.error(e);
@@ -331,10 +368,18 @@ document.addEventListener('DOMContentLoaded', () => {
         closeMappingPopupBtn.addEventListener('click', hideMappingDonePopup);
     }
 
-    // 8. 팝업 배경 클릭 시 닫기 (공통)
+    // 8. 장애물 팝업 닫기
+    const closeObstaclePopupBtn = document.getElementById('close-obstacle-popup');
+    if (closeObstaclePopupBtn) {
+        closeObstaclePopupBtn.addEventListener('click', hideObstaclePopup);
+    }
+
+    // 9. 팝업 배경 클릭 시 닫기 (공통)
+    const obstaclePopup = document.getElementById('obstacle-popup');
     window.addEventListener('click', (e) => {
         if (e.target === featurePopup) featurePopup.style.display = 'none';
         if (e.target === mappingDonePopup) hideMappingDonePopup();
+        if (e.target === obstaclePopup) hideObstaclePopup();
     });
 });
 

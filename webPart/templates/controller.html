@@ -141,11 +141,30 @@
             </div>
             <div class="popup-content">
                 <p>저장할 위치의 이름을 입력하세요:</p>
-                <input type="text" id="feature-name-input" class="popup-input" placeholder="예: 거실, 부엌, 충전소" autocomplete="off">
+                <input type="text" id="feature-name-input" class="popup-input" placeholder="A01, A02, ..." autocomplete="off">
             </div>
             <div class="popup-footer">
                 <button id="cancel-feature-btn" class="popup-btn cancel">취소</button>
                 <button id="confirm-feature-btn" class="popup-btn confirm">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 장애물 경고 팝업 -->
+    <div id="obstacle-popup" class="popup-overlay" style="display: none;">
+        <div class="popup-container">
+            <div class="popup-header">
+                <h3>⚠️ 이동 불가</h3>
+            </div>
+            <div class="popup-content">
+                <p>로봇이 해당 방향으로 이동할 수 없습니다.</p>
+                <p>장애물이 있거나 벽이 있는지 확인하세요.</p>
+            </div>
+            <div class="popup-footer">
+                <button id="close-obstacle-popup" class="popup-close-btn">
+                    <span class="close-icon">✓</span>
+                    <span class="close-text">확인</span>
+                </button>
             </div>
         </div>
     </div>
