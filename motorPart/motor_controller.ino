@@ -148,6 +148,13 @@ void prvRX(void *pvParameters) {
 
       cmd_to_send = CMD_INVALID; // INVALID 일 때는 QUEUEOVERWRITE 안하기에 괜찮. 
 
+      cmd_to_send = CMD_INVALID; // INVALID 일 때는 QUEUEOVERWRITE 안하기에 괜찮. 
+
+      cmd_to_send = CMD_INVALID; // INVALID 일 때는 QUEUEOVERWRITE 안하기에 괜찮. 
+
+      Serial.println(rx_byte, HEX);
+
+      /*
       switch(orientation) {
         case 0x01:
           cmd_to_send = CMD_RIGHT;
@@ -162,7 +169,8 @@ void prvRX(void *pvParameters) {
           cmd_to_send = CMD_UP;
           break;
       }
-      /*
+      */
+      
       String received_msg = Serial.readStringUntil('\n'); 
       received_msg.trim(); // 앞뒤 공백 및 캐리지 리턴 제거
       received_msg.toLowerCase(); // 대소문자 구분 없이 처리
@@ -180,7 +188,7 @@ void prvRX(void *pvParameters) {
        } else {
          cmd_to_send = CMD_INVALID;
        }
-      */
+      
 
       // ★ 여기가 핵심 ★
       if (cmd_to_send != CMD_INVALID) {
@@ -228,6 +236,7 @@ void prvMotorTask(void *pvParameters) {
           break;
         case CMD_INVALID:
         default:
+          // 추후 protocol 작성 후 에러 값 표출 
           break;
       }
     }
@@ -247,6 +256,7 @@ void prvSensorandTX(void *pvParameters) {
   long prev_Encoder_B = 0;
   float prev_theta = 0; 
 
+  FloatPacket_t px, py, ptheta;
   uint8_t tx_byte = 0; 
 
   // portTICK_PERIOD_MS = 주기 / ms  50ms 
@@ -282,6 +292,7 @@ void prvSensorandTX(void *pvParameters) {
     float dist_center = (distance_A + distance_B) / 2.0;
 
     // Rotation 각도
+
     float current_angle_deg = mpu.getAngleZ();
     g_robot_theta = current_angle_deg * PI / 180;
     float avg_theta = (prev_theta + g_robot_theta) / 2.0;

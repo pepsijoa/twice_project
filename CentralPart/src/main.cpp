@@ -10,7 +10,7 @@ import moveController;
 int main()
 {
     MainController mainCtrl;
-    std::cout << "hello" << std::endl;
+
     // 웹 컨트롤러 초기화
     if(!mainCtrl.initWebController("/tmp/flaskToCPP.sock")){
         std::cerr << "웹 컨트롤러 초기화 실패" << std::endl;
@@ -28,8 +28,8 @@ int main()
     //     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     // }
 
-    //get msg from web controller
-    //send msg to arudino controller (move controller)
+    // get msg from web controller
+    // send msg to arudino controller (move controller)
 
     while(true) {
         std::string interpretAck = mainCtrl.interpretMessage();

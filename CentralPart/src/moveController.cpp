@@ -68,6 +68,7 @@ bool MoveController::openPort(const std::string& port_name, int baud_rate) {
     options.c_cflag &= ~CSIZE;
     options.c_cflag |= CS8;
     options.c_cflag |= CREAD | CLOCAL;
+    options.c_cflag &= ~CRTSCTS; 
     options.c_lflag &= ~ICANON; 
     options.c_lflag &= ~ECHO; 
     options.c_iflag &= ~(IXON | IXOFF | IXANY);
@@ -111,6 +112,8 @@ bool MoveController::processCommand(const std::string& msg) {
 
     // 웹 메시지 -> 아두이노 1바이트 명령으로 '번역'
     if (msg == "up")        command_to_arduino = 0b11111000;
+    else if (msg == "mapping_feature") command_to_arduino = 0b10010000;
+    else if (msg == "mapped_feature") command_to_arduino = 0b10100000;
     else if (msg == "down") command_to_arduino = 0b11110100;
     else if (msg == "left") command_to_arduino = 0b11110010;
     else if (msg == "right") command_to_arduino = 0b11110001;
@@ -119,66 +122,81 @@ bool MoveController::processCommand(const std::string& msg) {
         return false;
     }
 
-    // 아두이노로 명령을 보내고, "YES/NO/Error" 응답을 받음
-    //std::cout << "MoveController: 아두이노로 '" << command_to_arduino << "' 전송 및 응답 대기..." << std::endl;
-    int robot_status = sendCommandToArduino(command_to_arduino);
+    sendCommandToArduino(command_to_arduino);
     
-    // 0x01 = Activate 0x02 = Sensor STOP
-    // 응답을 mainController로 전달
-    if (robot_status == 0x01) {
-        std::cout << "MoveController: 아두이노 응답 [YES]" << std::endl;
-        return true;
-    } else if (robot_status = 0x02) {
-        std::cout << "MoveController: 아두이노 응답 [NO] (장애물)" << std::endl;
-        return false;
-
-    } else { 
-        std::cout << "MoveController: 아두이노 통신 오류" << std::endl;
-        return false;
-    }
+    return true;
 }
 
 int MoveController::sendCommandToArduino(uint8_t cmd) {
+    tcflush(serial_fd, TCIOFLUSH); // 송수신 버퍼 비우기
     if (write(serial_fd, &cmd, 1) != 1) {
         std::cerr << "MoveController: 아두이노에 쓰기 실패" << std::endl;
-        return 'E'; // Error
+        return -1; // Error
     }
 
-    // 2. 응답 패킷 수신 (0xAA -> 0xBB -> Status)
-    uint8_t byte_in;
-    int attempt = 0;
+    uint8_t buffer[3] = {0, };
+    int total_read = 0;
+    int timeout_check = 0;
     
-    // 최대 100번 시도 (타임아웃 방지)
-    while (attempt < 100) {
-        // 1바이트 읽기
-        if (read(serial_fd, &byte_in, 1) != 1) {
-            attempt++;
-            usleep(1000); // 1ms 대기 (너무 빨리 돌면 CPU 낭비)
-            continue;
+    while(total_read <3){
+        int n = read(serial_fd, buffer + total_read, 3 - total_read);
+        if(n > 0){
+            total_read += n;
         }
-
-        // [Header 1] 0xAA 발견?
-        if (byte_in == 0xAA) {
-            // 그 다음 바이트 읽기
-            if (read(serial_fd, &byte_in, 1) == 1) {
-                // [Header 2] 0xBB 발견?
-                if (byte_in == 0xBB) {
-                    
-                    // [Data] 마지막 3번째 바이트 (Status) 읽기
-                    uint8_t status_byte;
-                    if (read(serial_fd, &status_byte, 1) == 1) {
-                        
-                        // 성공! 상태값 반환 (0x01, 0x02, 0x08 등)
-                        // std::cout << "Arduino Status: " << (int)status_byte << std::endl;
-                        return (int)status_byte; 
-                    }
-                }
+        else{
+            timeout_check++;
+            usleep(1000); // 1ms 대기 (너무 빨리 돌면 CPU 낭비)
+            if(timeout_check > 1000){ // 1초 이상 응답 없으면 타임아웃
+                std::cerr << "MoveController: 아두이노로부터 응답 타임아웃" << std::endl;
+                return -1;
             }
         }
-        attempt++;
     }
-    return -1; // 에러
+
+    if (buffer[0] == 0xAA && buffer[1] == 0xBB) {
+        uint8_t status = buffer[2];
+        std::cout << "RX: " << (int)status << std::endl;
+        return (int)status; // 상태값 반환
+    }
+    std::cerr << "MoveController: 잘못된 응답 패킷" << std::endl;
+    return -1; // Error
 }
+
+//     // 2. 응답 패킷 수신 (0xAA -> 0xBB -> Status)
+//     uint8_t byte_in;
+//     int attempt = 0;
+    
+//     // 최대 100번 시도 (타임아웃 방지)
+//     while (attempt < 100) {
+//         // 1바이트 읽기
+//         if (read(serial_fd, &byte_in, 1) != 1) {
+//             attempt++;
+//             usleep(1000); // 1ms 대기 (너무 빨리 돌면 CPU 낭비)
+//             continue;
+//         }
+
+//         // [Header 1] 0xAA 발견?
+//         if (byte_in == 0xAA) {
+//             // 그 다음 바이트 읽기
+//             if (read(serial_fd, &byte_in, 1) == 1) {
+//                 // [Header 2] 0xBB 발견?
+//                 if (byte_in == 0xBB) {
+                    
+//                     // [Data] 마지막 3번째 바이트 (Status) 읽기
+//                     uint8_t status_byte;
+//                     if (read(serial_fd, &status_byte, 1) == 1) {
+                        
+//                         // 성공! 상태값 반환 (0x01, 0x02, 0x08 등)
+//                         // std::cout << "Arduino Status: " << (int)status_byte << std::endl;
+//                         return (int)status_byte; 
+//                     }
+//                 }
+//             }
+//         }
+//         attempt++;
+//     }
+//     return -1; // 에러
+// }
 
 /*
 RobotDataPacket packet;
