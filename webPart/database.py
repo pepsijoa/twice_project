@@ -73,7 +73,7 @@ def get_all_inventory():
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT id, name, quantity, location, 
-                           DATE_FORMAT(updated_at, '%Y-%m-%d') as updated_at
+                           DATE_FORMAT(updated_at, '%%Y-%%m-%%d') as updated_at
                     FROM inventory
                     ORDER BY location, name
                 """)
@@ -94,7 +94,7 @@ def get_inventory_by_id(item_id):
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT id, name, quantity, location, 
-                           DATE_FORMAT(updated_at, '%Y-%m-%d') as updated_at
+                           DATE_FORMAT(updated_at, '%%Y-%%m-%%d') as updated_at
                     FROM inventory
                     WHERE id = %s
                 """, (item_id,))
@@ -115,7 +115,7 @@ def search_inventory(keyword):
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT id, name, quantity, location, 
-                           DATE_FORMAT(updated_at, '%Y-%m-%d') as updated_at
+                           DATE_FORMAT(updated_at, '%%Y-%%m-%%d') as updated_at
                     FROM inventory
                     WHERE name LIKE %s OR location LIKE %s
                     ORDER BY location, name
@@ -216,7 +216,7 @@ def get_inventory_by_location(location):
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT id, name, quantity, location, 
-                           DATE_FORMAT(updated_at, '%Y-%m-%d') as updated_at
+                           DATE_FORMAT(updated_at, '%%Y-%%m-%%d') as updated_at
                     FROM inventory
                     WHERE location = %s
                     ORDER BY name

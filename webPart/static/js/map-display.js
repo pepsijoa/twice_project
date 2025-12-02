@@ -139,16 +139,42 @@ function displayInventoryMap(mapData, targetLocation) {
         if (robotPos) break;
     }
     
+    // 반응형 셀 크기 계산: modal/mapDisplay 크기 기준으로 자동 조정
+    const container = mapDisplay;
+    const containerStyle = window.getComputedStyle(container);
+    const paddingLeft = parseInt(containerStyle.paddingLeft) || 0;
+    const paddingRight = parseInt(containerStyle.paddingRight) || 0;
+    const paddingTop = parseInt(containerStyle.paddingTop) || 0;
+    const paddingBottom = parseInt(containerStyle.paddingBottom) || 0;
+
+    // 사용 가능한 가로/세로 픽셀 계산
+    const availableWidth = Math.max(container.clientWidth - paddingLeft - paddingRight - 40, 100);
+    // 높이는 화면 높이의 일부로 제한 (모달 내부 여유 공간 고려)
+    const viewportHeight = Math.max(window.innerHeight - 200, 200);
+    const availableHeight = Math.max(Math.min(container.clientHeight || viewportHeight, viewportHeight) - paddingTop - paddingBottom - 120, 100);
+
+    // 셀 크기(최대 80px, 최소 18px)
+    const cellSizeByWidth = Math.floor(availableWidth / width);
+    const cellSizeByHeight = Math.floor(availableHeight / height);
+    let cellSize = Math.max(18, Math.min(80, Math.min(cellSizeByWidth, cellSizeByHeight)));
+
+    // 작은 화면에서는 셀 사이즈를 더 작게 하여 가독성 확보
+    if (window.innerWidth <= 480) {
+        cellSize = Math.max(18, Math.min(cellSize, 44));
+    } else if (window.innerWidth <= 768) {
+        cellSize = Math.max(24, Math.min(cellSize, 64));
+    }
+
     // Grid 생성
     let mapHtml = `
         <div style="
             display: grid;
-            grid-template-columns: repeat(${width}, 80px);
-            grid-template-rows: repeat(${height}, 80px);
-            gap: 1px;
+            grid-template-columns: repeat(${width}, ${cellSize}px);
+            grid-template-rows: repeat(${height}, ${cellSize}px);
+            gap: 6px;
             justify-content: center;
-            margin: 15px;
-            max-width: 95%;
+            margin: 8px auto;
+            max-width: 100%;
             overflow: auto;
         ">
     `;
@@ -169,7 +195,9 @@ function displayInventoryMap(mapData, targetLocation) {
                                     targetFeaturePos.y === y;
             
             let content = '';
-            let style = 'width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; font-size: 56px; position: relative; border-radius: 8px; overflow: visible;';
+            const fontSizeLarge = Math.max(12, Math.floor(cellSize * 0.7));
+            const fontSizeSmall = Math.max(10, Math.floor(cellSize * 0.35));
+            let style = `width: ${cellSize}px; height: ${cellSize}px; display: flex; align-items: center; justify-content: center; font-size: ${fontSizeLarge}px; position: relative; border-radius: ${Math.max(6, Math.floor(cellSize * 0.12))}px; overflow: visible;`;
             
             // 셀 배경색 및 내용 결정
             if (value === 0) {
@@ -194,7 +222,7 @@ function displayInventoryMap(mapData, targetLocation) {
                 // 로봇과 특징점이 같은 위치에 있는 경우
                 if (hasRobot && feature) {
                     content = `
-                        <div style="display: flex; gap: 6px; align-items: center; font-size: 40px;">
+                        <div style="display: flex; gap: ${Math.max(4, Math.floor(cellSize*0.08))}px; align-items: center; font-size: ${Math.max(18, Math.floor(cellSize*0.5))}px;">
                             <span>🤖</span>
                             <span>🔶</span>
                         </div>
@@ -212,6 +240,7 @@ function displayInventoryMap(mapData, targetLocation) {
                 
                 // 목표 위치 라벨 추가
                 if (isTargetLocation) {
+                    const labelFont = Math.max(12, Math.floor(cellSize * 0.35));
                     content += `<span style="
                         position: absolute;
                         bottom: -10px;
@@ -219,9 +248,9 @@ function displayInventoryMap(mapData, targetLocation) {
                         transform: translateX(-50%);
                         background: #ff5722;
                         color: white;
-                        padding: 4px 12px;
-                        border-radius: 12px;
-                        font-size: 20px;
+                        padding: 4px 10px;
+                        border-radius: 10px;
+                        font-size: ${labelFont}px;
                         font-weight: bold;
                         white-space: nowrap;
                         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
@@ -237,44 +266,56 @@ function displayInventoryMap(mapData, targetLocation) {
     }
     
     mapHtml += '</div>';
-    
-    // 범례 추가
+
+    // 범례/액션 박스 생성 (아래에 배치)
+    let actionHtml = '';
     if (targetFeaturePos) {
         const isRobotAtTarget = robotPos && robotPos.x === targetFeaturePos.x && robotPos.y === targetFeaturePos.y;
-        
-        mapHtml += `
-            <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 10px; text-align: center;">
+
+        actionHtml = `
+            <div style="width: 100%; max-width: 820px; box-sizing: border-box; padding: 12px; background: #f8f9fa; border-radius: 10px; text-align: center;">
                 <p style="font-size: 18px; font-weight: bold; color: #333; margin: 0;">
                     <span style="color: #ff5722;">${targetLocation}</span> 제품은 노란색 위치에 있습니다.
                 </p>
                 ${isRobotAtTarget ? 
-                    '<p style="font-size: 16px; color: #4caf50; margin: 5px 0 0 0;">✅ 로봇이 해당 위치에 있습니다!</p>' : 
-                    `<p style="font-size: 16px; color: #666; margin: 5px 0 0 0;">🤖 로봇은 다른 위치에 있습니다.</p>
-                    <button onclick="moveRobotToLocation('${targetLocation}', ${targetFeaturePos.x}, ${targetFeaturePos.y})" 
-                        style="
-                            margin-top: 15px;
-                            background: linear-gradient(145deg, #667eea, #764ba2);
-                            color: white;
-                            border: none;
-                            padding: 12px 30px;
-                            border-radius: 25px;
-                            font-size: 16px;
-                            font-weight: bold;
-                            cursor: pointer;
-                            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-                            transition: all 0.3s ease;
-                        "
-                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.4)'"
-                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.3)'"
-                    >
-                        🚀 해당 위치로 이동
-                    </button>`
+                    '<p style="font-size: 16px; color: #4caf50; margin: 8px 0 0 0;">✅ 로봇이 해당 위치에 있습니다!</p>' : 
+                    `<p style="font-size: 16px; color: #666; margin: 8px 0 0 0;">🤖 로봇은 다른 위치에 있습니다.</p>
+                    <div style="margin-top:12px; display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">
+                        <button onclick="moveRobotToLocation('${targetLocation}', ${targetFeaturePos.x}, ${targetFeaturePos.y})" 
+                            style="
+                                background: linear-gradient(145deg, #667eea, #764ba2);
+                                color: white;
+                                border: none;
+                                padding: 12px 20px;
+                                border-radius: 20px;
+                                font-size: 15px;
+                                font-weight: bold;
+                                cursor: pointer;
+                                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
+                                transition: all 0.18s ease;
+                                min-width: 140px;
+                            "
+                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.35)'"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.25)'"
+                        >
+                            🚀 해당 위치로 이동
+                        </button>
+                        <button onclick="closeMapModal()" style="background:#e0e0e0; border:none; padding:12px 20px; border-radius:20px; font-size:15px;">닫기</button>
+                    </div>`
                 }
             </div>
         `;
     }
-    
-    mapDisplay.innerHTML = mapHtml;
+
+    // 전체를 세로로 배치: 맵(위) + 액션 박스(아래)
+    const finalHtml = `
+        <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
+            ${mapHtml}
+            ${actionHtml}
+        </div>
+    `;
+
+    mapDisplay.innerHTML = finalHtml;
 }
 
 // 로봇을 특정 위치로 이동시키는 함수

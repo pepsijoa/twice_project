@@ -757,8 +757,32 @@ h1 {
 /* 반응형 맵 디자인 */
 @media (max-width: 768px) {
     .map-container {
-        max-width: 95%;
+        max-width: 100%;
         padding: 10px;
+    }
+
+    /* 컨트롤러 전체 레이아웃을 모바일에 맞게 확장 */
+    .controller {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 16px;
+    }
+
+    /* 방향 버튼을 더 큼직하게, 가로 스크롤 없이 배치 */
+    .button-row {
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .direction-btn {
+        width: 72px;
+        height: 72px;
+        font-size: 1rem;
+        border-radius: 12px;
+    }
+
+    .home-button-container {
+        margin-top: 16px;
     }
     
     .map-grid {
