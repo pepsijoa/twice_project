@@ -54,6 +54,8 @@ private:
 
     bool running;
     
+    std::string lastOrientation = "";
+
     // 공유 우선순위 큐
     std::priority_queue<Message> messageQueue;
     std::mutex queueMutex;

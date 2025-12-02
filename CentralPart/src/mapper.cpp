@@ -36,7 +36,7 @@ std::string Mapper::getMappingMessages(const char* msg)
             mostLeft = currentLocation.second;
         }
         locations.push_back(currentLocation);
-        
+        lastOrientation = "left";
         // 실시간 맵 업데이트
         updateMapWithCurrentState();
         
@@ -49,7 +49,7 @@ std::string Mapper::getMappingMessages(const char* msg)
             mostRight = currentLocation.second;
         }
         locations.push_back(currentLocation);
-        
+        lastOrientation = "right";
         // 실시간 맵 업데이트
         updateMapWithCurrentState();
         
@@ -62,7 +62,7 @@ std::string Mapper::getMappingMessages(const char* msg)
             mostUp = currentLocation.first;
         }
         locations.push_back(currentLocation);
-        
+        lastOrientation = "up";
         // 실시간 맵 업데이트
         updateMapWithCurrentState();
         
@@ -75,7 +75,7 @@ std::string Mapper::getMappingMessages(const char* msg)
             mostDown = currentLocation.first;
         }
         locations.push_back(currentLocation);
-        
+        lastOrientation = "down";
         // 실시간 맵 업데이트
         updateMapWithCurrentState();
         
@@ -121,6 +121,7 @@ std::string Mapper::getMappingMessages(const char* msg)
         FeaturePoint currentFeature;
         currentFeature.position = currentLocation;
         currentFeature.name = featureName;
+        currentFeature.orientation = lastOrientation;
         featureLocations.push_back(currentFeature);            
         
         updateMapWithCurrentState();
@@ -394,6 +395,16 @@ std::string Mapper::getDirection(std::pair<int,int> start, std::pair<int,int> en
     {
         return "invalid";
     }
+}
+
+int Mapper::getIndexOfFeatureByName(const std::string& name) const
+{
+    for(size_t i = 0; i < featureLocations.size(); i++) {
+        if(featureLocations[i].name == name) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1; 
 }
 
 std::pair<int, int> Mapper::getPositionByName(const std::string& name) const

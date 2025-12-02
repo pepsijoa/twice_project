@@ -88,6 +88,7 @@ void MainController::serverThreadFunction()
 {
     while(running)
     {
+
         if(!webCtrl->accept_connection())
         {
             std::cerr << "클라이언트 연결 실패, 재시도..." << std::endl;
@@ -118,6 +119,7 @@ void MainController::serverThreadFunction()
                     bool moveSuccess = true;
                     std::cout << "After " << receivedData << std::endl;
                     //bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
+                    lastOrientation = receivedData;
                     if(moveSuccess){
                         webCtrl->send_response("ACK");
                         pushMessage(1, receivedData);
@@ -140,7 +142,8 @@ void MainController::serverThreadFunction()
                 std::string featureName = receivedData.substr(std::string("featureShot/").length());
                 std::cout << "특징점 촬영 요청, 이름: " << featureName << std::endl;
 
-                //bool checkstored = moveCtrl->processCommand("mapping_feature");
+                //bool checkstored = moveCtrl->processCommand("mapping_feature_arrive", lastOrientation);
+                
                 bool camSuccess = false;
                 bool checkstored = true;
                 
@@ -210,6 +213,7 @@ void MainController::serverThreadFunction()
                     
                     // moveSuccess = moveCtrl->processCommand(direction);
                     bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
+                    lastOrientation = direction;
                     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
                     if(moveSuccess == false)
@@ -226,6 +230,9 @@ void MainController::serverThreadFunction()
                         std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     }
                 }
+                // moveCtrl한테 도착 했으니 각도 알려주고 camera 돌리기
+                bool orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", lastOrientation, mapper->getIndexOfFeatureByName(featureName));
+                //
                 webCtrl->send_response("MoveToDONE");
                 currentMode = Mode::NAVIGATINGDONE;
                 continue;
@@ -369,6 +376,8 @@ void MainController::startSearchingPath() {
                 // 실제 moveController 호출 (주석 해제 필요)
                 //bool moveSuccess = moveCtrl->processCommand(direction);
                 bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
+                lastOrientation = direction;
+
                 std::this_thread::sleep_for(std::chrono::milliseconds(2000));
                 
                 if(moveSuccess == false) {

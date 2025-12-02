@@ -1,10 +1,10 @@
 module;
 
 #include <unistd.h>
-#include <string>     
+#include <string>
 #include <iostream>
 #include <cstdint>
-#include <memory>     
+#include <memory>
 
 export module moveController;
   
@@ -17,7 +17,7 @@ export class MoveController {
         // 소멸자
         ~MoveController();
         bool isReady() const;
-        bool processCommand(const std::string& msg);
+            bool processCommand(const std::string& msg, const std::string& orientation = "", const int mappedIndex = -1);
 
         bool openPort(const std::string& port_name, int baud_rate);
         void closePort();

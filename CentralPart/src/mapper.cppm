@@ -11,11 +11,12 @@ export class Mapper{
         int mostRight = 0, mostUp = 0;
         bool doneMapping = false;
         std::vector<std::vector<int>> map;
-
+        std::string lastOrientation = "";
         std::vector<std::pair<int, int>> locations{{0,0}};
         
         struct FeaturePoint{
             std::pair<int, int> position;
+            std::string orientation;
             std::string name;
         };
 
@@ -34,6 +35,7 @@ export class Mapper{
         void updateSearchingResult(std::pair<int,int> locate, int state);
         std::vector<std::vector<int>> getMap() const {return map;}
         std::vector<FeaturePoint> getFeatureInfo() const { return sendFeatureinfo; }
+        int getIndexOfFeatureByName(const std::string& name) const;
         std::pair<int, int> getCurrentLocation() const { return currentLocation; }
         std::pair<int, int> getPositionByName(const std::string& name) const;
         std::vector<std::pair<int, int>> findSearchingPathBFS(std::pair<int,int> end);
