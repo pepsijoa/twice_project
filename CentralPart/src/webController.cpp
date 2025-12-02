@@ -135,3 +135,47 @@ void WebController::send_response(const char* message)
     // }
 }
 
+// Flask에 능동적으로 이벤트 전송 (클라이언트로 연결)
+bool WebController::send_event_to_flask(const char* event_message, const char* flask_socket_path)
+{
+    int temp_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (temp_fd < 0) {
+        std::cerr << "이벤트 소켓 생성 실패" << std::endl;
+        return false;
+    }
+    
+    sockaddr_un flask_addr{};
+    memset(&flask_addr, 0, sizeof(flask_addr));
+    flask_addr.sun_family = AF_UNIX;
+    strncpy(flask_addr.sun_path, flask_socket_path, sizeof(flask_addr.sun_path) - 1);
+    
+    // Flask 소켓에 연결 시도
+    if (connect(temp_fd, (struct sockaddr*)&flask_addr, sizeof(flask_addr)) < 0) {
+        std::cerr << "Flask 소켓 연결 실패: " << flask_socket_path << std::endl;
+        close(temp_fd);
+        return false;
+    }
+    
+    // 이벤트 메시지 전송
+    std::string msg_with_newline = std::string(event_message) + "\n";
+    ssize_t sent = send(temp_fd, msg_with_newline.c_str(), msg_with_newline.length(), 0);
+    
+    // 응답 대기 (타임아웃 설정)
+    struct timeval tv;
+    tv.tv_sec = 2;  // 2초 타임아웃
+    tv.tv_usec = 0;
+    setsockopt(temp_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+    
+    char response[256] = {0};
+    recv(temp_fd, response, sizeof(response) - 1, 0);
+    
+    close(temp_fd);
+    
+    if (sent > 0) {
+        std::cout << "✅ Flask에 이벤트 전송 완료: " << event_message << std::endl;
+        return true;
+    } else {
+        std::cerr << "❌ Flask 이벤트 전송 실패" << std::endl;
+        return false;
+    }
+}

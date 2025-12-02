@@ -10,5 +10,6 @@ export class CamController{
     public:
         CamController(int cam_id);
         bool CameraShot();
+        std::pair<int,int> updateInventory();
         ~CamController();
 };

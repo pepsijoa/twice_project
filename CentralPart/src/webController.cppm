@@ -34,4 +34,7 @@ export class WebController {
 
         // 응답 전송
         void send_response(const char* message);
+        
+        // Flask에 능동적으로 이벤트 전송 (클라이언트 연결)
+        bool send_event_to_flask(const char* event_message, const char* flask_socket_path);
 };
