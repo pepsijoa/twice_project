@@ -106,8 +106,8 @@ void MainController::serverThreadFunction()
                     continue;   
                 }
                 else{
-                    bool moveSuccess = moveCtrl->processCommand(receivedData);
-                    //bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
+                    //bool moveSuccess = moveCtrl->processCommand(receivedData);
+                    bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
                     if(moveSuccess){
                         webCtrl->send_response("ACK");
                         pushMessage(1, receivedData);

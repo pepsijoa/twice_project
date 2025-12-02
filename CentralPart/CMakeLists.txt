@@ -7,6 +7,18 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
+# 아키텍처 감지
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(STATUS "64-bit 아키텍처 감지됨")
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    message(STATUS "32-bit 아키텍처 감지됨")
+else()
+    message(WARNING "알 수 없는 아키텍처")
+endif()
+
+# 프로세서 아키텍처 출력
+message(STATUS "시스템 프로세서: ${CMAKE_SYSTEM_PROCESSOR}")
+
 # UTF-8 인코딩 설정
 add_compile_options(-finput-charset=UTF-8 -fexec-charset=UTF-8)
 

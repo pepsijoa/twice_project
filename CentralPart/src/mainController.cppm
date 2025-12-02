@@ -19,7 +19,8 @@ import moveController;
 export struct Message {
     int priority;           // 우선순위 (낮을수록 높은 우선순위)
     std::string data;       // 메시지 데이터
-    
+    int featureCount = 0;
+
     // 우선순위 큐를 위한 비교 연산자 (priority가 낮을수록 우선)
     bool operator<(const Message& other) const {
         return priority > other.priority;  // 역순 정렬
