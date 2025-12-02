@@ -114,8 +114,8 @@ void MainController::serverThreadFunction()
                     
                     std::cout << "Before " << receivedData << std::endl;
 
-                    bool moveSuccess = moveCtrl->processCommand(receivedData);
-                    
+                    //bool moveSuccess = moveCtrl->processCommand(receivedData);
+                    bool moveSuccess = true;
                     std::cout << "After " << receivedData << std::endl;
                     //bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
                     if(moveSuccess){
@@ -129,6 +129,13 @@ void MainController::serverThreadFunction()
                     continue;
                 }   
             }
+
+            else if (receivedData == "doneMapping") {
+                currentMode = Mode::SEARCHING;
+                pushMessage(1, receivedData);
+                webCtrl->send_response("DONEMAPPING_QUEUED");
+            }
+
             else if (receivedData.rfind("featureShot/", 0) == 0) { 
                 std::string featureName = receivedData.substr(std::string("featureShot/").length());
                 std::cout << "특징점 촬영 요청, 이름: " << featureName << std::endl;
@@ -159,6 +166,7 @@ void MainController::serverThreadFunction()
             }
             else if(receivedData == "remapping")
             {
+                currentMode = Mode::MAPPING;
                 webCtrl->send_response("REMAPPING_QUEUED");
                 continue;
             }
@@ -168,7 +176,71 @@ void MainController::serverThreadFunction()
                 webCtrl->send_response(mapJson.c_str());
                 continue;
             }
+            else if(receivedData.rfind("MoveTo/", 0) == 0){
+                if(currentMode == Mode::SEARCHING){
+                    currentMode = Mode::NAVIGATING;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+                }
+                std::string featureName = receivedData.substr(std::string("MoveTo/").length());
+                
+                //mapper로 특정 지점까지의 경로 탐색 요청
+                std::vector<std::pair<int,int>> path = mapper->findNavigatingPathBFS(featureName);
+                
+                
+                if(path.empty()) {
+                    webCtrl->send_response("MoveToFAIL:경로를 찾을 수 없습니다");
+                    continue;
+                }
+                
+                // 전체 경로 개수를 먼저 전송
+                std::string pathInfo = "MoveToSTART:" + std::to_string(path.size() - 1);
+                webCtrl->send_response(pathInfo.c_str());
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                
+                //목적지까지의 경로를 배열에 얻은 다음에 moveController로 전송
+                std::pair<int,int> pre = path[0];
+                std::string direction = "";
+                int stepCount = 0;
+                
+                for(size_t i = 1; i < path.size(); i++){
+                    direction = mapper->getDirection(pre, path[i]);
+                    pre = path[i];
+                    stepCount++;
+                    
+                    
+                    // moveSuccess = moveCtrl->processCommand(direction);
+                    bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
+                    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
+                    if(moveSuccess == false)
+                    {
+                        std::string failMsg = "MoveToFAIL:" + direction + ":" + std::to_string(stepCount);
+                        webCtrl->send_response(failMsg.c_str());
+                        break;
+                    }
+                    else if (moveSuccess == true)
+                    {
+                        std::string okMsg = "MoveToOK:" + direction + ":" + std::to_string(stepCount);
+                        webCtrl->send_response(okMsg.c_str());
+                        mapper->updateSearchingResult(pre, 1);
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    }
+                }
+                webCtrl->send_response("MoveToDONE");
+                currentMode = Mode::NAVIGATINGDONE;
+                continue;
+            }
+            else if(receivedData == "navigatedone"){
+                // NAVIGATINGDONE 모드에서 SEARCHING 모드로 전환
+                if(currentMode == Mode::NAVIGATINGDONE){
+                    currentMode = Mode::SEARCHING;
+                    webCtrl->send_response("OK");
+                    std::cout << "✅ Searching 모드로 전환됨" << std::endl;
+                } else {
+                    webCtrl->send_response("FAIL:현재 상태에서 전환할 수 없습니다");
+                }
+                continue;
+            }
 
 
         }
@@ -178,35 +250,142 @@ void MainController::serverThreadFunction()
     }
 }
 
-void MainController::startNavigatingPath() {
+void MainController::startSearchingPath() {
 
     auto featureLocations = mapper->getFeatureInfo();
-
-    //const std::vector<std::pair<int,int>>& path
-    navigatingActive = true;
-    navigatingThread = std::thread([this, featureLocations]() {
-        for (const auto& loc :  featureLocations)
+    
+    // 스레드가 이미 실행 중이면 중복 생성 방지
+    if(searchingThread.joinable()) {
+        return;
+    }
+    
+    
+    searchingThread = std::thread([this]() {
+        std::string targetFeature = "";  // 현재 목표로 하는 feature
+        
+        while(true) 
         {
-            std::pair<int,int> goal = loc.position;
-            std::vector<std::pair<int, int>> path = mapper->findNavigatingPathBFS(goal);
-            for (const auto& point : path) {
-                if (currentMode != Mode::NAVIGATING || !navigatingActive) break;
-                // moveController에 명령 전송
-                bool moveSuccess = false;
-                
-                //moveSuccess = moveCtrl->moveTo(point);
-                if(moveSuccess == false)
-                {
-                    mapper->updateNavigateResult(point, -1);
-                }
-                else if (moveSuccess == true)
-                {
-                    mapper->updateNavigateResult(point, 1);
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            // 모드가 SEARCHING이 아니면 일시정지
+            if(currentMode != Mode::SEARCHING) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                continue;
             }
+            
+            auto currentFeatures = mapper->getFeatureInfo();
+            const int totalFeatures = currentFeatures.size();
+            
+            // 방문한 특징점 목록 가져오기
+            std::vector<std::string> currentVisited;
+            {
+                std::lock_guard<std::mutex> lock(visitedMutex);
+                currentVisited = visitedFeatures;
+            }
+            
+            
+            // 모든 특징점을 방문했으면 초기화하고 다시 시작
+            if(currentVisited.size() >= static_cast<size_t>(totalFeatures)) {
+                {
+                    std::lock_guard<std::mutex> lock(visitedMutex);
+                    visitedFeatures.clear();
+                    currentVisited.clear();
+                }
+                targetFeature = "";  // 목표 초기화
+                continue;  // 즉시 다음 루프로 (다시 방문 상태 체크)
+            }
+            
+            // 현재 위치 확인
+            auto currentPos = mapper->getCurrentLocation();
+            
+            // 현재 위치가 특징점인지 확인하고 방문 처리
+            bool currentIsFeature = false;
+            for(const auto& feature : currentFeatures) {
+                if(feature.position == currentPos) {
+                    currentIsFeature = true;
+                    bool alreadyVisited = false;
+                    for(const auto& visited : currentVisited) {
+                        if(feature.name == visited) {
+                            alreadyVisited = true;
+                            break;
+                        }
+                    }
+                    
+                    if(!alreadyVisited) {
+                        {
+                            std::lock_guard<std::mutex> lock(visitedMutex);
+                            visitedFeatures.push_back(feature.name);
+                        }
+                        // 방문 후 즉시 다음 목표로 이동하기 위해 continue
+                        targetFeature = "";
+                        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                        continue;
+                    }
+                    
+                    // 이미 방문한 특징점이면서 목표였던 경우
+                    if(targetFeature == feature.name) {
+                        targetFeature = "";
+                        continue;
+                    }
+                    break;
+                }
+            }
+            
+            // 다음 목표 특징점으로 경로 찾기 (현재 방문 상태 업데이트 후)
+            {
+                std::lock_guard<std::mutex> lock(visitedMutex);
+                currentVisited = visitedFeatures;
+            }
+            
+            std::vector<std::pair<int,int>> path = mapper->moveToNearestFeaturePoint(currentVisited);
+            
+            if(path.empty()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                continue;
+            }
+            
+            // 목표 특징점 이름 찾기
+            std::pair<int,int> destination = path.back();
+            for(const auto& feature : currentFeatures) {
+                if(feature.position == destination) {
+                    targetFeature = feature.name;
+                    break;
+                }
+            }
+            
+            // 경로를 따라 이동 (모드 변경 시 중단 가능)
+            std::pair<int,int> pre = path[0];
+            bool pathCompleted = true;
+            
+            for (size_t i = 1; i < path.size(); i++) {
+                // 이동 중 모드가 변경되면 중단
+                if(currentMode != Mode::SEARCHING) {
+                    pathCompleted = false;
+                    break;
+                }
+                
+                std::pair<int,int> point = path[i];
+                std::string direction = mapper->getDirection(pre, point);
+                
+                
+                // 실제 moveController 호출 (주석 해제 필요)
+                //bool moveSuccess = moveCtrl->processCommand(direction);
+                bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
+                std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+                
+                if(moveSuccess == false) {
+                    mapper->updateSearchingResult(point, -1);
+                    pathCompleted = false;
+                    targetFeature = "";  // 실패 시 목표 초기화
+                    break;
+                }
+                else {
+                    mapper->updateSearchingResult(point, 1);
+                  }
+                
+                pre = point;
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            
         }
-        navigatingActive = false;
     });
 }
 
@@ -259,20 +438,15 @@ std::string MainController::interpretMessage()
             
             ACKMSG = mapper->getMappingMessages(msg.data.c_str());
             if(ACKMSG == "DONEMAPPING"){
-                currentMode = Mode::NAVIGATING;
-                startNavigatingPath();
+                startSearchingPath();
                 return ACKMSG;
             }
+
             else {
-                // MOVE OK,
-                currentMode = Mode::MAPPING;
                 return ACKMSG;
             }
             
-
-            // std::cout << "MoveController: 장애물 있음 [" << msg.data << "]" << std::endl;
-            // std::cout << "DELETE ME";
-            // return "MOVEFAIL";
+            return ACKMSG;  // 기본 반환값 추가
 
         }
         
@@ -281,15 +455,10 @@ std::string MainController::interpretMessage()
             return ACKMSG;
         }
         else if(msg.data == "remapping"){
-            
-            mapper = std::make_unique<Mapper>();
-            
-            currentMode = Mode::MAPPING;
-            
+            mapper = std::make_unique<Mapper>();            
             return "REMAPPING_STARTED";
         }
         else if(msg.data == "requestMap"){
-            // 맵 데이터 요청 처리
             return getMapAsJson();
         }
         else{
@@ -308,6 +477,9 @@ std::string MainController::getMapAsJson()
     // 데이터 읽는 동안 맵이 변경되지 않도록 Mutex 잠금 권장
     // std::lock_guard<std::mutex> lock(mapperMutex); 
 
+    // 맵 요청 시 현재 상태로 맵 업데이트 (현재 위치 포함)
+    mapper->updateMapWithCurrentState();
+    
     auto mapData = mapper->getMap();
     auto featureData = mapper->getFeatureInfo();
 

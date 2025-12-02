@@ -1,24 +1,55 @@
 // 맵 표시 관련 JavaScript
 
+// 실시간 업데이트 관련 변수
+let mapUpdateInterval = null;
+const MAP_UPDATE_INTERVAL = 1000; // 1초마다 업데이트
+let currentLocation = null; // 현재 표시 중인 위치
+
 // 맵 표시 함수
 function showMap(itemName, location) {
     const modal = document.getElementById('mapModal');
     const modalTitle = document.getElementById('modalTitle');
     const mapDisplay = document.getElementById('mapDisplay');
     
+    console.log('🗺️ 맵 모달 열기:', itemName, location);
+    
     modalTitle.textContent = `${itemName} 위치 정보 (${location})`;
     mapDisplay.innerHTML = '맵을 불러오는 중...';
     
     modal.style.display = 'block';
     
-    // 맵 데이터 가져오기
+    // 현재 위치 저장
+    currentLocation = location;
+    
+    // 맵 데이터 가져오기 (초기 로드)
     fetchMapForLocation(location);
+    
+    // 실시간 업데이트 시작
+    if (mapUpdateInterval) {
+        clearInterval(mapUpdateInterval);
+    }
+    console.log('⏱️ 실시간 업데이트 시작 (1초 간격)');
+    mapUpdateInterval = setInterval(() => {
+        if (currentLocation) {
+            fetchMapForLocation(currentLocation);
+        }
+    }, MAP_UPDATE_INTERVAL);
 }
 
 // 맵 모달 닫기
 function closeMapModal() {
+    console.log('🚪 맵 모달 닫기');
     const modal = document.getElementById('mapModal');
     modal.style.display = 'none';
+    
+    // 실시간 업데이트 중지
+    if (mapUpdateInterval) {
+        console.log('⏹️ 실시간 업데이트 중지');
+        clearInterval(mapUpdateInterval);
+        mapUpdateInterval = null;
+    }
+    
+    currentLocation = null;
 }
 
 // 모달 외부 클릭시 닫기
@@ -32,10 +63,11 @@ window.onclick = function(event) {
 // 특정 위치의 맵 데이터 가져오기
 async function fetchMapForLocation(location) {
     try {
+        console.log('🔄 맵 데이터 요청 중...', new Date().toLocaleTimeString());
         const response = await fetch('/get-map');
         const data = await response.json();
         
-        console.log('받은 맵 데이터:', data);
+        console.log('📥 맵 데이터 수신:', data.status);
         
         if (data && data.status === 'success' && data.map) {
             displayInventoryMap(data, location);
@@ -264,13 +296,37 @@ async function moveRobotToLocation(locationName, targetX, targetY) {
         
         const data = await response.json();
         
-        if (data.status === 'success') {
-            alert(`✅ 로봇이 "${locationName}" 위치로 이동을 시작합니다!`);
+        if (data.status === 'completed') {
+            // 이동 완료 후 Searching 모드 전환 확인 팝업
+            if (confirm(`✅ 로봇이 "${locationName}" 위치로 이동을 완료했습니다! (${data.completed_steps}단계)\n\nSearching 모드로 전환하시겠습니까?`)) {
+                try {
+                    const navDoneResponse = await fetch('/navigatedone', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const navDoneData = await navDoneResponse.json();
+                    
+                    if (navDoneData.status === 'success') {
+                        alert(`🔍 ${navDoneData.message}\n로봇이 자동으로 특징점을 탐색합니다.`);
+                    } else {
+                        alert(`⚠️ Searching 모드 전환 실패: ${navDoneData.message}`);
+                    }
+                } catch (error) {
+                    console.error('Searching 모드 전환 오류:', error);
+                    alert('❌ Searching 모드 전환 중 오류가 발생했습니다.');
+                }
+            }
+            
             // 맵 새로고침
             setTimeout(() => {
                 const location = document.getElementById('modalTitle').textContent.match(/\((.+)\)/)?.[1];
                 if (location) fetchMapForLocation(location);
             }, 1000);
+        } else if (data.status === 'failed') {
+            alert(`❌ 이동 실패: ${data.error || data.message}`);
         } else {
             alert(`❌ 이동 실패: ${data.message}`);
         }

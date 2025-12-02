@@ -34,11 +34,14 @@ private:
     enum Mode{
         MAPPING = 0,
         SEARCHING = 1,
-        NAVIGATING = 2
+        NAVIGATING = 2,
+        NAVIGATINGDONE = 3
     };
 
     std::atomic<Mode> currentMode = MAPPING;
-    std::atomic<bool> navigatingActive = false;
+    std::atomic<bool> searchingActive = false;
+    std::vector<std::string> visitedFeatures;  // 방문한 특징점 추적 (일시정지/재개용)
+    std::mutex visitedMutex;  // visitedFeatures 보호용 뮤텍스
     
 
     std::unique_ptr<WebController> webCtrl;
@@ -47,7 +50,7 @@ private:
     std::unique_ptr<MoveController> moveCtrl;
 
     std::thread serverThread;
-    std::thread navigatingThread;
+    std::thread searchingThread;
 
     bool running;
     
@@ -55,12 +58,11 @@ private:
     std::priority_queue<Message> messageQueue;
     std::mutex queueMutex;
     std::condition_variable queueCV;
-    
     // 서버 스레드 함수
     void serverThreadFunction();
 
     // 내비게이션 스레드 함수
-    void startNavigatingPath();
+    void startSearchingPath();
 
     // 메시지 큐 크기
     size_t getQueueSize();

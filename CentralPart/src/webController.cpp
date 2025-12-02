@@ -124,7 +124,9 @@ void WebController::send_response(const char* message)
         return;
     }
 
-    ssize_t sent = send(client_fd, message, strlen(message), 0);
+    // 메시지 + 줄바꿈 추가
+    std::string msg_with_newline = std::string(message) + "\n";
+    ssize_t sent = send(client_fd, msg_with_newline.c_str(), msg_with_newline.length(), 0);
     if (sent == -1) {
         std::cerr << "응답 전송 실패" << std::endl;
     } 

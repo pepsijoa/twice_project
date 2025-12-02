@@ -24,16 +24,20 @@ export class Mapper{
 
         // std::vector<std::pair<int, int>> featureLocations;
         std::pair<int, int> currentLocation{0,0};
-        void updateMapWithCurrentState();  // 실시간 맵 업데이트 함수
-        
+        bool AmIFeaturePoint();
     public:
         Mapper();
+        void updateMapWithCurrentState();  // 실시간 맵 업데이트 함수
         std::string getMappingMessages(const char* msg);
         bool IsMappingDone();
-        void updateNavigateResult(std::pair<int,int> locate, int state);
+        std::vector<std::pair<int,int>> moveToNearestFeaturePoint(const std::vector<std::string>& visitedFeatures);
+        void updateSearchingResult(std::pair<int,int> locate, int state);
         std::vector<std::vector<int>> getMap() const {return map;}
         std::vector<FeaturePoint> getFeatureInfo() const { return sendFeatureinfo; }
+        std::pair<int, int> getCurrentLocation() const { return currentLocation; }
+        std::pair<int, int> getPositionByName(const std::string& name) const;
         std::vector<std::pair<int, int>> findSearchingPathBFS(std::pair<int,int> end);
-        std::vector<std::pair<int, int>> findNavigatingPathBFS(std::pair<int,int> end);
+        std::vector<std::pair<int, int>> findNavigatingPathBFS(std::string featureName);
+        std::string getDirection(std::pair<int,int> start, std::pair<int,int> end);
         ~Mapper();
 };

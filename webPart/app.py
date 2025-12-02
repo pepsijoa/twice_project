@@ -347,37 +347,114 @@ def get_features():
         print(f"Feature 목록 조회 오류: {e}")
         return jsonify({'status': 'error', 'message': str(e)})
 
+
+    
 # 로봇을 특정 위치로 이동시키는 라우트
 @app.route('/move-to', methods=['POST'])
 def move_to_location():
-    """로봇을 특정 feature 위치로 이동"""
+    """로봇을 특정 feature 위치로 이동 (실시간 업데이트)"""
     try:
         data = request.get_json()
         location = data.get('location')
 
-        command = f"MoveTo/"
-        #print(f"🚀 로봇 이동 명령 전송: {command} (위치: {location})")
+        command = f"MoveTo/{location}"
+        print(f"🚀 이동 요청: {command}")
         
-        success, response = safe_socket_communication(command, timeout=5)
+        # 더 긴 타임아웃과 큰 버퍼로 모든 응답 수신
+        success, full_response = safe_socket_communication(command, buffer_size=8192, timeout=30)
         
         if not success:
-            return jsonify({'status': 'error', 'message': f'전송 실패: {response}'})
+            print(f"❌ 소켓 통신 실패: {full_response}")
+            return jsonify({'status': 'error', 'message': f'전송 실패: {full_response}'})
         
-        # C++ 응답 처리
-        if response.strip() == "MOVETO_OK":
-            return jsonify({
-                'status': 'success', 
-                'message': f'{location} 위치로 이동 시작',
-                'location': location,
-                'coordinates': {'x': x, 'y': y}
-            })
-        elif response.strip() == "MOVETO_FAIL":
-            return jsonify({'status': 'failed', 'message': '이동 불가능한 위치입니다.'})
-        else:
-            return jsonify({'status': 'error', 'message': f'예상치 못한 응답: {response}'})
+        print(f"📥 C++ 서버 원본 응답:\n{full_response}")
+        print(f"📏 응답 길이: {len(full_response)} bytes")
+        
+        # 여러 응답을 파싱
+        responses = [r.strip() for r in full_response.split('\n') if r.strip()]
+        print(f"📦 파싱된 응답 개수: {len(responses)}")
+        
+        steps = []
+        total_steps = 0
+        status = 'unknown'
+        error_message = ''
+        
+        for idx, response in enumerate(responses):
+            print(f"  [{idx}] {response}")
+            
+            if response.startswith("MoveToSTART:"):
+                total_steps = int(response.split(':')[1])
+                status = 'in_progress'
+                print(f"    → 시작: 총 {total_steps}단계")
+            elif response.startswith("MoveToOK:"):
+                parts = response.split(':')
+                direction = parts[1] if len(parts) > 1 else 'unknown'
+                step_num = int(parts[2]) if len(parts) > 2 else 0
+                steps.append({'direction': direction, 'step': step_num, 'success': True})
+                print(f"    → 성공: {direction} (단계 {step_num})")
+            elif response.startswith("MoveToFAIL:"):
+                parts = response.split(':')
+                error_message = parts[1] if len(parts) > 1 else '이동 실패'
+                status = 'failed'
+                print(f"    → 실패: {error_message}")
+                break
+            elif response == "MoveToDONE":
+                status = 'completed'
+                print(f"    → 완료!")
+        
+        # status가 여전히 'in_progress'인 경우, 모든 단계가 성공했으면 'completed'로 변경
+        if status == 'in_progress' and len(steps) == total_steps and total_steps > 0:
+            status = 'completed'
+            print(f"✅ 모든 단계 완료로 판단: {len(steps)}/{total_steps}")
+        
+        result = {
+            'status': status,
+            'message': f'{location} 위치로 이동 {"완료" if status == "completed" else "실패" if status == "failed" else "진행중"}',
+            'location': location,
+            'total_steps': total_steps,
+            'completed_steps': len(steps),
+            'steps': steps,
+            'error': error_message if error_message else None
+        }
+        
+        print(f"📤 최종 응답: status={status}, steps={len(steps)}/{total_steps}")
+        return jsonify(result)
             
     except Exception as e:
-        print(f"로봇 이동 중 오류 발생: {e}")
+        print(f"❌ 로봇 이동 중 오류 발생: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)})
+
+# 네비게이션 완료 후 Searching 모드로 전환
+@app.route('/navigatedone', methods=['POST'])
+def navigate_done():
+    """로봇 이동 완료 후 Searching 모드로 전환"""
+    try:
+        success, response = safe_socket_communication('navigatedone', timeout=10)
+        
+        if not success:
+            print(f"❌ navigatedone 소켓 통신 실패: {response}")
+            return jsonify({'status': 'error', 'message': f'전송 실패: {response}'})
+        
+        print(f"📥 navigatedone 응답: {response}")
+        
+        if response.strip() == "OK":
+            return jsonify({
+                'status': 'success', 
+                'message': 'Searching 모드로 전환되었습니다.',
+                'mode': 'searching'
+            })
+        else:
+            return jsonify({
+                'status': 'error', 
+                'message': f'예상치 못한 응답: {response}'
+            })
+            
+    except Exception as e:
+        print(f"❌ navigatedone 처리 중 오류: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'status': 'error', 'message': str(e)})
 
 # 인증서 다운로드 라우트

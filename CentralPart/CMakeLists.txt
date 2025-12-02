@@ -22,6 +22,16 @@ message(STATUS "시스템 프로세서: ${CMAKE_SYSTEM_PROCESSOR}")
 # UTF-8 인코딩 설정
 add_compile_options(-finput-charset=UTF-8 -fexec-charset=UTF-8)
 
+# OpenCV 찾기 (GStreamer 지원 포함)
+find_package(OpenCV 4 REQUIRED)
+message(STATUS "OpenCV 버전: ${OpenCV_VERSION}")
+message(STATUS "OpenCV 라이브러리: ${OpenCV_LIBS}")
+
+# GStreamer 찾기 (libcamera 지원용)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
+pkg_check_modules(GSTREAMER_VIDEO REQUIRED gstreamer-video-1.0)
+
 set(PROJECT_NAME twiceproject)
 
 # 모듈 파일 추가
@@ -49,7 +59,31 @@ add_executable(${PROJECT_NAME}
 )
 
 # 모듈 라이브러리 링크
-target_link_libraries(${PROJECT_NAME} PRIVATE modules)
+target_link_libraries(${PROJECT_NAME} PRIVATE 
+    modules 
+    ${OpenCV_LIBS}
+    ${GSTREAMER_LIBRARIES}
+    ${GSTREAMER_VIDEO_LIBRARIES}
+)
 
-# include 디렉토리 설정
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+# OpenCV 및 GStreamer include 디렉토리 설정
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    ${CMAKE_SOURCE_DIR}/src
+    ${OpenCV_INCLUDE_DIRS}
+    ${GSTREAMER_INCLUDE_DIRS}
+    ${GSTREAMER_VIDEO_INCLUDE_DIRS}
+)
+
+# 모듈에도 OpenCV 및 GStreamer 링크
+target_link_libraries(modules PRIVATE
+    ${OpenCV_LIBS}
+    ${GSTREAMER_LIBRARIES}
+    ${GSTREAMER_VIDEO_LIBRARIES}
+)
+
+target_include_directories(modules PRIVATE 
+    ${CMAKE_SOURCE_DIR}/src
+    ${OpenCV_INCLUDE_DIRS}
+    ${GSTREAMER_INCLUDE_DIRS}
+    ${GSTREAMER_VIDEO_INCLUDE_DIRS}
+)

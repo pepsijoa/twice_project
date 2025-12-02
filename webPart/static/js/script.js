@@ -21,8 +21,8 @@ const closeMappingPopupBtn = document.getElementById('close-mapping-popup');
 let mapUpdateInterval = null;
 let isMappingCompleted = false;
 // Poll intervals (milliseconds)
-const MAP_POLL_INTERVAL_ACTIVE = 3000; // normal active polling (3s)
-const MAP_POLL_INTERVAL_IDLE = 5000;   // when mapping completed / idle (5s)
+const MAP_POLL_INTERVAL_ACTIVE = 300; // normal active polling (0.3s)
+const MAP_POLL_INTERVAL_IDLE = 1000;   // when mapping completed / idle (1s)
 
 // ==========================================
 // 2. 핵심 로직: 맵 렌더링 및 데이터 가져오기

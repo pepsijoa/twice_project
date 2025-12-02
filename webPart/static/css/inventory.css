@@ -312,6 +312,46 @@ body {
     font-size: 1.2rem;
 }
 
+/* 맵 셀 스타일 */
+.map-cell {
+    transition: all 0.2s ease;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.map-cell.empty {
+    background: #e0e0e0;
+}
+
+.map-cell.path {
+    background: #ffffff;
+}
+
+.map-cell.feature {
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    font-weight: bold;
+    color: #333;
+}
+
+.map-cell.current-position {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.map-cell.blocked {
+    background: #333;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+}
+
 .empty-state {
     background: rgba(255, 255, 255, 0.95);
     padding: 60px 20px;
