@@ -512,9 +512,26 @@ std::string MainController::getMapAsJson()
 
     for (size_t i = 0; i < featureData.size(); ++i) {
         if (i > 0) ss << ",";
+        
+        // name 필드의 특수문자 이스케이프 (JSON 안전성)
+        std::string safeName = featureData[i].name;
+        size_t pos = 0;
+        while ((pos = safeName.find("\"", pos)) != std::string::npos) {
+            safeName.replace(pos, 1, "\\\"");
+            pos += 2;
+        }
+        while ((pos = safeName.find("\\", pos)) != std::string::npos) {
+            if (pos + 1 >= safeName.length() || safeName[pos + 1] != '\"') {
+                safeName.replace(pos, 1, "\\\\");
+                pos += 2;
+            } else {
+                pos += 2;
+            }
+        }
+        
         ss << "{\"y\": " << featureData[i].position.first 
            << ",\"x\": " << featureData[i].position.second 
-           << ",\"name\": \"" << featureData[i].name << "\"}";
+           << ",\"name\": \"" << safeName << "\"}";
     }
     
     ss << "] }";
