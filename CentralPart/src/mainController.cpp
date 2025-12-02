@@ -48,6 +48,10 @@ bool MainController::initMoveController(const std::string& port_name, int baud_r
         std::cerr << "MainController: MoveController 포트 열기 실패" << std::endl;
         return false;
     }
+    if (moveCtrl->openPort(port_name, baud_rate)) {
+        std::cerr << "포트 열림. 아두이노 부팅 대기 중" << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(2)); // 2초 대기
+    }
     
     return moveCtrl->isReady();
 }
