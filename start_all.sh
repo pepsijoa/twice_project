@@ -18,7 +18,7 @@ echo "📁 기존 소켓 파일 정리..."
 rm -f /tmp/flaskToCPP.sock
 
 # C++ 프로젝트 디렉토리로 이동하여 빌드
-cd /home/pi/iotclass/twice_project/CentralPart
+cd /home/kkw/iotclass/twice_project/CentralPart
 echo "🔨 C++ 프로젝트 빌드 확인..."
 cmake --build build
 
@@ -36,11 +36,11 @@ if [ -f "build/twiceproject" ]; then
         
         # Flask 서버 시작
         echo "🌐 Flask 웹 서버 시작 중..."
-        cd /home/pi/iotclass/twice_project/webPart
+        cd /home/kkw/iotclass/twice_project/webPart
         
         # 가상환경 활성화 (있다면)
-        if [ -f "/home/pi/iotclass/vkkw/bin/activate" ]; then
-            source /home/pi/iotclass/vkkw/bin/activate
+        if [ -f "/home/kkw/iotclass/vkkw/bin/activate" ]; then
+            source /home/kkw/iotclass/vkkw/bin/activate
             echo "🐍 Python 가상환경 활성화됨"
         fi
         
