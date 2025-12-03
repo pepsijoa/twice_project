@@ -58,7 +58,6 @@ typedef enum {
 
 volatile MotorCommand_t g_currentMotorState = CMD_STOP;
 volatile bool g_isObstacleDetected = false; // E-STOP 상태 플래그
-volatile uint8_t g_robot_status;
 volatile bool g_rx_error = false;
 
 /**
@@ -120,7 +119,7 @@ void setup() {
   xTaskCreate(
     prvRX,    // 태스크 함수 포인터
     "RX",     // 태스크 이름
-    128,              // 스택 크기 (word 단위)
+    100,              // 스택 크기 (word 단위)
     NULL,             // 태스크 파라미터
     1,                // 우선순위 (낮음)
     NULL);            // 태스크 핸들 (안 씀)
@@ -128,7 +127,7 @@ void setup() {
   xTaskCreate(
     prvMotorTask,     // 태스크 함수 포인터
     "MotorTask",      // 태스크 이름
-    128,              // 스택 크기
+    100,              // 스택 크기
     NULL,             // 태스크 파라미터
     2,                // 우선순위 (높음)
     &Motor_Control);  // 태스크 핸들
@@ -136,7 +135,7 @@ void setup() {
   xTaskCreate(
     prvSensorandTX,
     "Sensor & TX",
-    128,
+    200,
     NULL,
     3,
     &Motor_ESTOP);
@@ -175,9 +174,6 @@ void prvRX(void *pvParameters) {
           cmd_to_send = CMD_UP;
           break;
       }
-
-      xQueueOverwrite(xMotorQueue, &cmd_to_send);
-      
       //★ 여기가 핵심 ★
       if (cmd_to_send != CMD_INVALID) {
          g_rx_error = false; 
@@ -296,6 +292,8 @@ void prvSensorandTX(void *pvParameters) {
 
     long duration = pulseIn(ECHO_PIN, HIGH, 5000);
     int distance = duration / 58;
+
+    if (duration == 0) distance = 999;
 
     bool isEmergency = distance > 0 && distance < STOP_DISTANCE_CM;
     if (isEmergency) {
