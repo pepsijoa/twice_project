@@ -23,8 +23,8 @@ MainController::MainController() : webCtrl(nullptr), mapper(nullptr), camCtrl(nu
     // Mapper 초기화
     mapper = std::make_unique<Mapper>();
     
-    // CamController 생성 (연결은 나중에)
-    camCtrl = std::make_unique<CamController>();
+    // CamController 초기화
+    // camCtrl = std::make_unique<CamController>();
 }
 
 //소멸자
@@ -339,18 +339,18 @@ void MainController::startSearchingPath() {
                     // }
                     
                     // 특징점 위치 도착 및 재고 업데이트 진행.
-                    std::vector<std::pair<int,int>> inventoryUpdates = camCtrl->updateInventory();
+                    // std::vector<std::pair<int,int>> inventoryUpdates = camCtrl->updateInventory();
                     
-                    for(const auto& inventoryUpdate : inventoryUpdates) {
-                        int inventoryID = inventoryUpdate.first;
-                        int boxCount = inventoryUpdate.second;
+                    // for(const auto& inventoryUpdate : inventoryUpdates) {
+                    //     int inventoryID = inventoryUpdate.first;
+                    //     int boxCount = inventoryUpdate.second;
                         
                         std::cout << "🎯 특징점 도착: " << feature.name
                                 << " | 재고ID: " << inventoryID 
                                 << " | 상자수: " << boxCount << std::endl;
                         
-                        // Flask에 재고 업데이트 메시지 전송 (Unix 소켓)
-                        // inventoryID(제품 이름)로 DB의 name 필드와 매칭
+                    //     // Flask에 재고 업데이트 메시지 전송 (Unix 소켓)
+                    //     // inventoryID(제품 이름)로 DB의 name 필드와 매칭
                         if (inventoryID > 0) {  // 유효한 inventoryID인 경우만 전송
                             std::string payload = R"({"inventoryID": )" + std::to_string(inventoryID) + 
                                                     R"(, "featureName": ")" + feature.name +

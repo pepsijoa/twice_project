@@ -138,7 +138,7 @@ int MoveController::processCommand(const std::string& msg, const std::string& or
 
     int status = sendCommandToArduino(command_to_arduino);
     
-    return status;
+    return status; // 0x02 -> Sensor 감지 0x01 -> 정상 이동 등 0x04 -> RX 에러
 }
 
 int MoveController::sendCommandToArduino(uint8_t cmd) {
