@@ -245,11 +245,8 @@ void prvMotorTask(void *pvParameters) {
       switch (received_cmd) {
         case CMD_UP:
           g_target_heading_deg = 0.0f;
-          //Serial.println("Rotating");
           rotate_sequence();
-          //Serial.println("Rotating Done");
           move_sequence(TARGET_CM);
-          //Serial.println("Moving Done");
           break;
         case CMD_DOWN:
           g_target_heading_deg = 180.0f;
