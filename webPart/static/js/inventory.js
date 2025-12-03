@@ -249,6 +249,36 @@ async function addItem() {
         if (data.status === 'success') {
             alert(`✅ 재고가 추가되었습니다.\n위치: ${location}`);
             loadInventory();
+            
+            // 6. 로봇을 해당 위치로 이동시킬지 묻기
+            const shouldMove = confirm(`🤖 로봇을 "${location}" 위치로 이동시키겠습니까?`);
+            
+            if (shouldMove) {
+                try {
+                    console.log(`🚀 로봇 이동 요청: ${location}`);
+                    
+                    const moveResponse = await fetch('/move-to', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ 
+                            feature_name: location 
+                        })
+                    });
+                    
+                    const moveData = await moveResponse.json();
+                    
+                    if (moveData.status === 'success') {
+                        alert(`✅ 로봇이 "${location}" 위치로 이동을 시작했습니다.`);
+                    } else {
+                        alert(`❌ 로봇 이동 실패: ${moveData.message}`);
+                    }
+                } catch (error) {
+                    console.error('로봇 이동 오류:', error);
+                    alert('❌ 로봇 이동 중 오류가 발생했습니다.');
+                }
+            }
         } else {
             alert('❌ 재고 추가 실패: ' + data.message);
         }

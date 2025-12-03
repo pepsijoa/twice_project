@@ -1,14 +1,15 @@
 module;
 
 #include <iostream>
-#include <iostream>
 #include <string>
+#include <cstring>
+#include <sstream>
+#include <vector>
+#include <utility>
+#include <algorithm>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <nlohmann/json.hpp> 
-
-using json = nlohmann::json;
 
 module camController;
 
@@ -38,66 +39,99 @@ CamController::CamController()
     std::cout << "[C++] Python 카메라 서버 연결 완료" << std::endl;
 }
 
-nlohmann::json CamController::getArucoData()
+std::string CamController::getArucoDataRaw()
 {
     if (sock < 0) {
         std::cerr << "[C++] 소켓이 연결되지 않음" << std::endl;
-        return json::object();
+        return "{}";
     }
     
-    std::string msg = "get_marker_data";
+    std::string msg = "get_marker_data\n";
     ssize_t sent = send(sock, msg.c_str(), msg.length(), 0);
     
     if (sent < 0) {
         std::cerr << "[C++] 데이터 전송 실패" << std::endl;
-        return json::object();
+        return "{}";
     }
 
-    // JSON 데이터 수신
-    // Python이 분석하는 동안(1초) 여기서 블로킹(대기) 됩니다.
-    memset(buffer, 0, sizeof(buffer));
-    int valread = read(sock, buffer, sizeof(buffer) - 1);
+    // JSON 데이터 수신 (개행 문자까지 읽기)
+    std::string response;
+    char ch;
+    while (read(sock, &ch, 1) > 0) {
+        if (ch == '\n') break;
+        response += ch;
+    }
     
-    if (valread > 0) {
-        try {
-            // 문자열을 JSON 객체로 파싱
-            std::string json_str(buffer, valread);
-            json j = json::parse(json_str);
-            return j;
-        } catch (json::parse_error& e) {
-            std::cerr << "[C++] JSON 파싱 에러: " << e.what() << std::endl;
-            return json::object();
-        }
-    } else if (valread == 0) {
-        std::cerr << "[C++] 연결이 닫힘" << std::endl;
-    } else {
-        std::cerr << "[C++] 데이터 수신 실패" << std::endl;
+    if (response.empty()) {
+        std::cerr << "[C++] 응답 없음" << std::endl;
+        return "{}";
     }
-
-    return json::object();
+    
+    return response;
 }
 
 std::vector<std::pair<int,int>> CamController::updateInventory()
 {
     std::vector<std::pair<int,int>> inventoryDatas;
-    // aruco 번호, 상자 갯수  반환
-    nlohmann::json arucoData = getArucoData();
-
-    for (auto& element : arucoData.items()) {
-            std::string id_str = element.key();
-            int count = element.value();
+    
+    // JSON 문자열 가져오기
+    std::string json_str = getArucoDataRaw();
+    
+    // 수동 파싱: {"1": 2, "3": 1} 형태
+    if (json_str == "{}") {
+        return inventoryDatas; // 빈 데이터
+    }
+    
+    // 중괄호 제거
+    size_t start = json_str.find('{');
+    size_t end = json_str.find('}');
+    if (start == std::string::npos || end == std::string::npos) {
+        std::cerr << "[C++] JSON 형식 오류" << std::endl;
+        return inventoryDatas;
+    }
+    
+    std::string content = json_str.substr(start + 1, end - start - 1);
+    if (content.empty()) {
+        return inventoryDatas;
+    }
+    
+    // 쉼표로 분리하여 각 항목 파싱
+    std::stringstream ss(content);
+    std::string item;
+    
+    while (std::getline(ss, item, ',')) {
+        // "1": 2 형태를 파싱
+        size_t colon_pos = item.find(':');
+        if (colon_pos == std::string::npos) continue;
+        
+        std::string key_part = item.substr(0, colon_pos);
+        std::string value_part = item.substr(colon_pos + 1);
+        
+        // 따옴표와 공백 제거
+        key_part.erase(std::remove(key_part.begin(), key_part.end(), '"'), key_part.end());
+        key_part.erase(std::remove(key_part.begin(), key_part.end(), ' '), key_part.end());
+        value_part.erase(std::remove(value_part.begin(), value_part.end(), ' '), value_part.end());
+        
+        try {
+            int id = std::stoi(key_part);
+            int count = std::stoi(value_part);
             
-            std::cout << "  -> 마커 ID: " << id_str << ", 개수: " << count << std::endl;
-            int id = std::stoi(id_str);
+            std::cout << "  -> 마커 ID: " << id << ", 개수: " << count << std::endl;
             inventoryDatas.push_back({id, count});
-            
+        } catch (const std::exception& e) {
+            std::cerr << "[C++] 파싱 에러: " << e.what() << std::endl;
         }
+    }
+    
     return inventoryDatas;
 }
 CamController::~CamController()
 {
     std::cout << "카메라 컨트롤러 소멸" << std::endl;
     if (sock >= 0) {
+        // Python 서버에 종료 신호 전송
+        std::string quit_msg = "quit\n";
+        send(sock, quit_msg.c_str(), quit_msg.length(), 0);
         close(sock);
     }
 }

@@ -63,29 +63,38 @@ server.listen(1)
 print(f"[Python] 소켓 서버 대기 중... ({SOCKET_PATH})")
 
 try:
+    # 한 번만 연결 수락 (persistent)
+    conn, addr = server.accept()
+    print("[Python] C++ 클라이언트 연결됨")
+    
     while True:
-        # C++의 접속 대기
-        conn, addr = server.accept()
-        
         # 데이터 수신 (Trigger)
-        # C++에서 "REQ" 같은 문자열을 보내면 반응
         data = conn.recv(1024)
         if not data:
-            conn.close()
-            continue
-            
-        if data == "get_marker_data".encode('utf-8'):
+            print("[Python] 연결이 종료되었습니다.")
+            break
+        
+        msg = data.decode('utf-8').strip()
+        
+        if msg == "get_marker_data":
             # 마커 분석 수행
             json_output = get_marker_data()
             
-            # 결과 전송 (길이 정보 없이 바로 문자열 전송)
-            conn.sendall(json_output.encode('utf-8'))
-            
-            conn.close() # 연결 끊고 다음 요청 대기
+            # 결과 전송 + 구분자
+            response = json_output + "\n"
+            conn.sendall(response.encode('utf-8'))
+            print(f"[Python] 데이터 전송 완료: {json_output}")
+        elif msg == "quit":
+            print("[Python] 종료 요청 받음")
+            break
 
 except KeyboardInterrupt:
     print("\n[Python] 종료 중...")
 finally:
+    try:
+        conn.close()
+    except:
+        pass
     picam2.stop()
     server.close()
     if os.path.exists(SOCKET_PATH):
