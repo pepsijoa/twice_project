@@ -16,32 +16,63 @@ module camController;
 CamController::CamController() 
 {
     std::cout << "카메라 컨트롤러 생성" << std::endl;
+    serv_addr.sun_family = AF_UNIX;
+    strcpy(serv_addr.sun_path, socket_path);
+}
+
+bool CamController::init(int max_retries, int retry_delay_ms)
+{
+    std::cout << "[C++] 카메라 서버 연결 시도 (최대 " << max_retries << "회)..." << std::endl;
+    
+    for (int attempt = 1; attempt <= max_retries; ++attempt) {
+        if (connectToServer()) {
+            std::cout << "[C++] ✅ Python 카메라 서버 연결 완료 (" << attempt << "/" << max_retries << ")" << std::endl;
+            return true;
+        }
+        
+        if (attempt < max_retries) {
+            std::cout << "[C++] 재시도 중... (" << attempt << "/" << max_retries << ")" << std::endl;
+            usleep(retry_delay_ms * 1000);
+        }
+    }
+    
+    std::cerr << "[C++] ❌ 카메라 서버 연결 실패 (최대 재시도 횟수 초과)" << std::endl;
+    return false;
+}
+
+bool CamController::connectToServer()
+{
+    // 이미 연결되어 있으면 재연결 시도
+    if (sock >= 0) {
+        close(sock);
+        sock = -1;
+    }
     
     // 소켓 생성
     sock = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sock < 0) {
         std::cerr << "[C++] 소켓 생성 실패" << std::endl;
-        sock = -1;
-        return;
+        return false;
     }
-
-    serv_addr.sun_family = AF_UNIX;
-    strcpy(serv_addr.sun_path, socket_path);
 
     // Python 서버에 연결
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        std::cerr << "[C++] 서버 연결 실패 (Python 스크립트가 실행 중인가요?)" << std::endl;
         close(sock);
         sock = -1;
-        return;
+        return false;
     }
     
-    std::cout << "[C++] Python 카메라 서버 연결 완료" << std::endl;
+    return true;
+}
+
+bool CamController::isConnected() const
+{
+    return sock >= 0;
 }
 
 std::string CamController::getArucoDataRaw()
 {
-    if (sock < 0) {
+    if (!isConnected()) {
         std::cerr << "[C++] 소켓이 연결되지 않음" << std::endl;
         return "{}";
     }

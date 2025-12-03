@@ -102,10 +102,10 @@ bool MoveController::isReady() const {
 }
 
 // 명령 처리
-bool MoveController::processCommand(const std::string& msg, const std::string& orientation, const int mappedIndex) {
+int MoveController::processCommand(const std::string& msg, const std::string& orientation, const int mappedIndex) {
     if (serial_fd < 0) {
         std::cerr << "MoveController: 시리얼 포트가 유효하지 않습니다." << std::endl;
-        return false; // 초기화 실패 상태
+        return -1; // 초기화 실패 상태
     }
 
     uint8_t command_to_arduino = 0;
@@ -123,7 +123,7 @@ bool MoveController::processCommand(const std::string& msg, const std::string& o
         else if (orientation == "right") command_to_arduino = 0b00011000;
         else{
             std::cerr << "MoveController: 잘못된 방향 정보 제공됨: " << orientation << std::endl;
-            return false;
+            return -1;
         }
     }
     
@@ -135,17 +135,17 @@ bool MoveController::processCommand(const std::string& msg, const std::string& o
         else if (orientation == "right") command_to_arduino = 0b01000000 | (mappedIndex & 0b00001111);
         else{
             std::cerr << "MoveController: 잘못된 방향 정보 제공됨: " << orientation << std::endl;
-            return false;
+            return -1;
         }
     }
     else {
         std::cout << "MoveController: 처리할 수 없는 명령 [" << msg << "]" << std::endl;
-        return false;
+        return -1;
     }
 
-    sendCommandToArduino(command_to_arduino);
+    int status = sendCommandToArduino(command_to_arduino);
     
-    return true;
+    return status;
 }
 
 int MoveController::sendCommandToArduino(uint8_t cmd) {

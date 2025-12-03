@@ -27,6 +27,12 @@ int main()
         std::cerr << "Main: MoveController 초기화 재시도..." << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
+    
+    // CamController 초기화 (5회 재시도, 500ms 간격)
+    if(!mainCtrl.initCamController(5, 500)) {
+        std::cerr << "⚠️ Main: CamController 초기화 실패 - 카메라 기능 없이 계속 진행" << std::endl;
+        // 카메라 없이도 계속 진행하도록 함
+    }
 
     // get msg from web controller
     // send msg to arudino controller (move controller)

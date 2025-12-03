@@ -83,12 +83,8 @@ fi
 echo "✅ 카메라 서버 시작 완료!"
 
 # C++ 프로젝트 디렉토리로 이동하여 빌드
-cd "$SCRIPT_DIR/CentralPart"
+cd "$SCRIPT_DIR/CentralPart/build"
 echo "🔨 C++ 프로젝트 빌드 중..."
-rm -rf build
-mkdir build
-cd build
-cmake -G Ninja ..
 ninja
 
 # C++ 서버 실행

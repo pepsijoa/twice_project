@@ -23,7 +23,7 @@ MainController::MainController() : webCtrl(nullptr), mapper(nullptr), camCtrl(nu
     // Mapper 초기화
     mapper = std::make_unique<Mapper>();
     
-    // CamController 초기화
+    // CamController 생성 (연결은 나중에)
     camCtrl = std::make_unique<CamController>();
 }
 
@@ -48,12 +48,22 @@ bool MainController::initMoveController(const std::string& port_name, int baud_r
         std::cerr << "MainController: MoveController 포트 열기 실패" << std::endl;
         return false;
     }
-    if (moveCtrl->openPort(port_name, baud_rate)) {
-        std::cerr << "포트 열림. 아두이노 부팅 대기 중" << std::endl;
-        std::this_thread::sleep_for(std::chrono::seconds(2)); // 2초 대기
-    }
+    
+    // 아두이노 부팅 대기
+    std::cout << "아두이노 부팅 대기 중..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(2));
     
     return moveCtrl->isReady();
+}
+
+bool MainController::initCamController(int max_retries, int retry_delay_ms)
+{
+    if (!camCtrl) {
+        std::cerr << "MainController: CamController가 생성되지 않았습니다" << std::endl;
+        return false;
+    }
+    
+    return camCtrl->init(max_retries, retry_delay_ms);
 }
 
 // 서버 스레드 시작
@@ -125,14 +135,10 @@ void MainController::serverThreadFunction()
                     continue;   
                 }
                 else{
-                    
-                    
                     std::cout << "Before " << receivedData << std::endl;
-
-                    bool moveSuccess = moveCtrl->processCommand(receivedData);
+                    int moveSuccess = moveCtrl->processCommand(receivedData);
                     //bool moveSuccess = true;
                     std::cout << "After " << receivedData << std::endl;
-                    
                     lastOrientation = receivedData;
                     if(moveSuccess){
                         webCtrl->send_response("ACK");
@@ -141,7 +147,6 @@ void MainController::serverThreadFunction()
                     else{
                         webCtrl->send_response("MOVEFAIL");
                     }
-
                     continue;
                 }   
             }
@@ -340,7 +345,7 @@ void MainController::startSearchingPath() {
                         int inventoryID = inventoryUpdate.first;
                         int boxCount = inventoryUpdate.second;
                         
-                        std::cout << "🎯 특징점 도착: " << feature.name 
+                        std::cout << "🎯 특징점 도착: " << feature.name
                                 << " | 재고ID: " << inventoryID 
                                 << " | 상자수: " << boxCount << std::endl;
                         
