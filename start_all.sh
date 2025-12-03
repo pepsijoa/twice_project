@@ -5,7 +5,7 @@ echo "🚀 IoT 컨트롤 시스템을 시작합니다..."
 
 # 기존 Flask 서버 종료
 echo "🛑 기존 Flask 서버 종료 중..."
-pkill -f "python.*app.py" 2>/dev/null || true
+pkill -f "python.*app.py" 2>/dev/null || true 
 sleep 2
 
 # 기존 C++ 서버 종료
@@ -13,9 +13,15 @@ echo "🛑 기존 C++ 서버 종료 중..."
 pkill -f "twiceproject" 2>/dev/null || true
 sleep 1
 
+
+
 # 기존 소켓 파일 삭제
 echo "📁 기존 소켓 파일 정리..."
 rm -f /tmp/flaskToCPP.sock
+rm -f /tmp/aruco_socket
+
+# 카메라 서버 실행
+python3 /home/kkw/iotclass/twice_project/camPart/cam.py &
 
 # C++ 프로젝트 디렉토리로 이동하여 빌드
 cd /home/kkw/iotclass/twice_project/CentralPart

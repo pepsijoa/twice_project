@@ -24,7 +24,7 @@ MainController::MainController() : webCtrl(nullptr), mapper(nullptr), camCtrl(nu
     mapper = std::make_unique<Mapper>();
     
     // CamController 초기화
-    camCtrl = std::make_unique<CamController>(0);
+    camCtrl = std::make_unique<CamController>();
 }
 
 //소멸자
@@ -164,7 +164,6 @@ void MainController::serverThreadFunction()
             
                 if(checkstored == true)
                 {
-                    camSuccess = camCtrl->CameraShot();    
                     if(camSuccess)
                     {
                         pushMessage(2, receivedData); // 필요시 featureName만 push 가능
@@ -226,6 +225,8 @@ void MainController::serverThreadFunction()
                     
                     
                     // moveSuccess = moveCtrl->processCommand(direction);
+
+
                     bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
                     lastOrientation = direction;
                     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
@@ -245,7 +246,7 @@ void MainController::serverThreadFunction()
                     }
                 }
                 // moveCtrl한테 도착 했으니 각도 알려주고 camera 돌리기
-                bool orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", lastOrientation, mapper->getIndexOfFeatureByName(featureName));
+                // bool orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", lastOrientation, mapper->getIndexOfFeatureByName(featureName));
                 
                 
 
@@ -325,22 +326,32 @@ void MainController::startSearchingPath() {
             for(const auto& feature : currentFeatures) {
                 if(feature.position == currentPos) {
                     
+                    //특징점 위치 도착 및 해당 지점에서 방향 확인하기.
+                    // bool orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", "", mapper->getIndexOfFeatureByName(feature.name));
+                    // if(!orientSuccess){
+                    //     std::cout << "특징점 도착, 방향 전환 실패.." << stdd::endl;
+                    //     continue;
+                    // }
+                    
                     // 특징점 위치 도착 및 재고 업데이트 진행.
-                    std::pair<int,int> inventoryUpdate = camCtrl->updateInventory();
-                    int inventoryID = inventoryUpdate.first;
-                    int boxCount = inventoryUpdate.second;
+                    std::vector<std::pair<int,int>> inventoryUpdates = camCtrl->updateInventory();
                     
-                    std::cout << "🎯 특징점 도착: " << feature.name 
-                              << " | 재고ID: " << inventoryID 
-                              << " | 상자수: " << boxCount << std::endl;
-                    
-                    // Flask에 재고 업데이트 메시지 전송 (Unix 소켓)
-                    // inventoryID(제품 이름)로 DB의 name 필드와 매칭
-                    if (inventoryID > 0) {  // 유효한 inventoryID인 경우만 전송
-                        std::string payload = R"({"inventoryID": )" + std::to_string(inventoryID) + 
-                                                R"(, "featureName": ")" + feature.name +
-                                                R"(", "boxCount": )" + std::to_string(boxCount) + "}";
-                        sendTriggerToFlask("inventory_update", payload);
+                    for(const auto& inventoryUpdate : inventoryUpdates) {
+                        int inventoryID = inventoryUpdate.first;
+                        int boxCount = inventoryUpdate.second;
+                        
+                        std::cout << "🎯 특징점 도착: " << feature.name 
+                                << " | 재고ID: " << inventoryID 
+                                << " | 상자수: " << boxCount << std::endl;
+                        
+                        // Flask에 재고 업데이트 메시지 전송 (Unix 소켓)
+                        // inventoryID(제품 이름)로 DB의 name 필드와 매칭
+                        if (inventoryID > 0) {  // 유효한 inventoryID인 경우만 전송
+                            std::string payload = R"({"inventoryID": )" + std::to_string(inventoryID) + 
+                                                    R"(, "featureName": ")" + feature.name +
+                                                    R"(", "boxCount": )" + std::to_string(boxCount) + "}";
+                            sendTriggerToFlask("inventory_update", payload);
+                        }
                     }
 
                     currentIsFeature = true;
