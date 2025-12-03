@@ -140,7 +140,7 @@ void MainController::serverThreadFunction()
                     //bool moveSuccess = true;
                     std::cout << "After " << receivedData << std::endl;
                     lastOrientation = receivedData;
-                    if(moveSuccess){
+                    if(moveSuccess >= 0 && moveSuccess != 2){
                         webCtrl->send_response("ACK");
                         pushMessage(1, receivedData);
                     }

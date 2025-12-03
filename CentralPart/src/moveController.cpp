@@ -128,15 +128,8 @@ int MoveController::processCommand(const std::string& msg, const std::string& or
     }
     
     else if (msg == "mapped_feature_arrive") {
-        //todo : mappedIndex는 31 이하의 값이어야 함
-        if(orientation == "up")        command_to_arduino = 0b00010000 | (mappedIndex & 0b00001111);
-        else if (orientation == "down") command_to_arduino = 0b00100000 | (mappedIndex & 0b00001111);
-        else if (orientation == "left") command_to_arduino = 0b10000000 | (mappedIndex & 0b00001111);
-        else if (orientation == "right") command_to_arduino = 0b01000000 | (mappedIndex & 0b00001111);
-        else{
-            std::cerr << "MoveController: 잘못된 방향 정보 제공됨: " << orientation << std::endl;
-            return -1;
-        }
+        //todo : mappedIndex는 15 이하의 값이어야 함
+        command_to_arduino = (mappedIndex & 0b00001111);
     }
     else {
         std::cout << "MoveController: 처리할 수 없는 명령 [" << msg << "]" << std::endl;

@@ -24,7 +24,7 @@
 const int STOP_DISTANCE_CM = 10;
 // MOTOR HARDWARE SPEC
 const float WHEEL_DIAMETER_CM = 6.5f;
-const float COUNTS_PER_REV = 20.0;
+const float COUNTS_PER_REV = 40.0; //한 바퀴 돌때 카운트는 40
 
 #define DIST_PER_PULSE (PI * WHEEL_DIAMETER_CM / COUNTS_PER_REV)
 
@@ -35,7 +35,8 @@ volatile float g_robot_x = 0.0;
 volatile float g_robot_y = 0.0;
 volatile float g_robot_theta = 0.0;
 
-int success_move = false;
+bool success_move = false;
+bool success_rotate = false;
 
 MPU6050 mpu(Wire);
 
@@ -53,11 +54,22 @@ TaskHandle_t Motor_ESTOP;
 
 //--- 3. Queue로 보낼 데이터 타입 정의 ---
 typedef enum {
-  CMD_STOP, CMD_UP, CMD_DOWN, CMD_LEFT, CMD_RIGHT, CMD_MAPPING, CMD_MAPPED, CMD_INVALID
+  CMD_STOP,
+  CMD_UP,
+  CMD_DOWN,
+  CMD_LEFT,
+  CMD_RIGHT,
+  MAPPING_UP,
+  MAPPING_DOWN,
+  MAPPING_LEFT,
+  MAPPING_RIGHT,
+  MAPPED,
+  CMD_INVALID
 } MotorCommand_t; // MotorCommand_t 라는 새로운 타입을 만듦
 
 volatile MotorCommand_t g_currentMotorState = CMD_STOP;
 volatile bool g_isObstacleDetected = false; // E-STOP 상태 플래그
+volatile uint8_t g_robot_status;
 volatile bool g_rx_error = false;
 
 /**
@@ -66,18 +78,18 @@ volatile bool g_rx_error = false;
  * @return const char* (문자열 포인터)
  */
 
-const char* getCommandString(MotorCommand_t cmd) {
-  switch (cmd) {
-    case CMD_STOP:   return "STOP";
-    case CMD_UP:     return "UP";
-    case CMD_DOWN:   return "DOWN";
-    case CMD_LEFT:   return "LEFT";
-    case CMD_RIGHT:  return "RIGHT";
-    case CMD_MAPPING:return "MAPPING";
-    case CMD_MAPPED: return "MAPPED";
-    default:         return "INVALID";
-  }
-}
+// const char* getCommandString(MotorCommand_t cmd) {
+//   switch (cmd) {
+//     case CMD_STOP:   return "STOP";
+//     case CMD_UP:     return "UP";
+//     case CMD_DOWN:   return "DOWN";
+//     case CMD_LEFT:   return "LEFT";
+//     case CMD_RIGHT:  return "RIGHT";
+//     case CMD_MAPPING:return "MAPPING";
+//     case CMD_MAPPED: return "MAPPED";
+//     default:         return "INVALID";
+//   }
+// }
 
 void ISR_Encoder_A(){
   g_ENCODER_LEFT_COUNT++;  
@@ -119,7 +131,7 @@ void setup() {
   xTaskCreate(
     prvRX,    // 태스크 함수 포인터
     "RX",     // 태스크 이름
-    100,              // 스택 크기 (word 단위)
+    128,              // 스택 크기 (word 단위)
     NULL,             // 태스크 파라미터
     1,                // 우선순위 (낮음)
     NULL);            // 태스크 핸들 (안 씀)
@@ -127,7 +139,7 @@ void setup() {
   xTaskCreate(
     prvMotorTask,     // 태스크 함수 포인터
     "MotorTask",      // 태스크 이름
-    100,              // 스택 크기
+    150,              // 스택 크기
     NULL,             // 태스크 파라미터
     2,                // 우선순위 (높음)
     &Motor_Control);  // 태스크 핸들
@@ -135,7 +147,7 @@ void setup() {
   xTaskCreate(
     prvSensorandTX,
     "Sensor & TX",
-    200,
+    150,
     NULL,
     3,
     &Motor_ESTOP);
@@ -146,6 +158,8 @@ void setup() {
 
 
 void loop() {}
+
+uint8_t g_mapped_index = 0;
 
 void prvRX(void *pvParameters) {
   (void) pvParameters;
@@ -158,22 +172,48 @@ void prvRX(void *pvParameters) {
     if (Serial.available() > 0) {
       rx_byte = (uint8_t)Serial.read();
       
-      uint8_t orientation = rx_byte & 0b00001111;
+      uint8_t category = rx_byte & 0xF0;
+      uint8_t index = rx_byte & 0x0F;
 
-      switch(orientation) {
-        case 0x01:
-          cmd_to_send = CMD_RIGHT;
+      switch(category) {
+        case 0xF0: //move
+          switch(index) {
+            case 0x01:
+              cmd_to_send = CMD_RIGHT;
+              break;
+            case 0x02:
+              cmd_to_send = CMD_LEFT;
+              break;
+            case 0x04:
+              cmd_to_send = CMD_DOWN;
+              break;
+            case 0x08:
+              cmd_to_send = CMD_UP;
+              break;
+          }
           break;
-        case 0x02:
-          cmd_to_send = CMD_LEFT;
+        case 0x10: //mapping
+          switch(index) {
+            case 0x01:
+              cmd_to_send = MAPPING_UP;
+              break;
+            case 0x02:
+              cmd_to_send = MAPPING_DOWN;
+              break;
+            case 0x04:
+              cmd_to_send = MAPPING_LEFT;
+              break;
+            case 0x08:
+              cmd_to_send = MAPPING_RIGHT;
+              break;
+          }
           break;
-        case 0x04:
-          cmd_to_send = CMD_DOWN;
-          break;
-        case 0x08:
-          cmd_to_send = CMD_UP;
+        case 0x00: //mapped
+          g_mapped_index = index; 
+          cmd_to_send = MAPPED;
           break;
       }
+      
       //★ 여기가 핵심 ★
       if (cmd_to_send != CMD_INVALID) {
          g_rx_error = false; 
@@ -189,6 +229,8 @@ void prvRX(void *pvParameters) {
 
 float g_target_heading_deg;
 float TARGET_CM = 20;
+float g_mapping_buffer[30];
+uint8_t g_mapping_count = 0;
 
 void prvMotorTask(void *pvParameters) {
   (void) pvParameters;
@@ -199,11 +241,15 @@ void prvMotorTask(void *pvParameters) {
     //--- 큐에서 명령이 올 때까지 무한정 대기 (Blocked 상태) ---
     // 큐에 데이터가 들어오면 이 태스크는 즉시 'Ready' 상태가 됨
     if (xQueueReceive(xMotorQueue, &received_cmd, portMAX_DELAY) == pdPASS) {
+      Serial.print("CMD: "); Serial.println(received_cmd);
       switch (received_cmd) {
         case CMD_UP:
           g_target_heading_deg = 0.0f;
+          //Serial.println("Rotating");
           rotate_sequence();
+          //Serial.println("Rotating Done");
           move_sequence(TARGET_CM);
+          //Serial.println("Moving Done");
           break;
         case CMD_DOWN:
           g_target_heading_deg = 180.0f;
@@ -223,6 +269,49 @@ void prvMotorTask(void *pvParameters) {
         case CMD_STOP:
           Motor_STOP();
           break;
+        case MAPPING_UP:
+          g_target_heading_deg = 0.0f;
+          rotate_sequence();
+          if (g_mapping_count < 30) {
+            g_mapping_buffer[g_mapping_count] = 0.0f; 
+            g_mapping_count++;
+          }
+          if (!g_isObstacleDetected) success_rotate = true;
+          break;
+        case MAPPING_DOWN:
+          g_target_heading_deg = 180.0f;
+          rotate_sequence();
+          if (g_mapping_count < 30) {
+            g_mapping_buffer[g_mapping_count] = 180.0f; 
+            g_mapping_count++;
+          }
+          if (!g_isObstacleDetected) success_rotate = true;
+          break;
+        case MAPPING_LEFT:
+          g_target_heading_deg = -90.0f;
+          rotate_sequence();
+          if (g_mapping_count < 30) {
+            g_mapping_buffer[g_mapping_count] = -90.0f; 
+            g_mapping_count++;
+          }
+          if (!g_isObstacleDetected) success_rotate = true;
+          break;
+        case MAPPING_RIGHT:
+          g_target_heading_deg = 90.0f;
+          rotate_sequence();
+          if (g_mapping_count < 30) { 
+            g_mapping_buffer[g_mapping_count] = 90.0f; 
+            g_mapping_count++;
+          }
+          if (!g_isObstacleDetected) success_rotate = true;
+          break;
+        case MAPPED:
+          if (g_mapped_index < g_mapping_count) {
+            g_target_heading_deg = g_mapping_buffer[g_mapped_index];
+            rotate_sequence();
+            if (!g_isObstacleDetected) success_rotate = true;
+          }
+          break;   
         case CMD_INVALID:
         default:
           // 추후 protocol 작성 후 에러 값 표출 
@@ -253,6 +342,8 @@ void prvSensorandTX(void *pvParameters) {
   TickType_t xLastWakeTime = xTaskGetTickCount();
 
   MotorCommand_t estop_cmd = CMD_STOP; // E-STOP은 항상 STOP 명령만 보냄
+
+  
 
   for (;;) {
     unsigned long startTime = micros(); // 1. 시작 시간 기록
@@ -293,8 +384,6 @@ void prvSensorandTX(void *pvParameters) {
     long duration = pulseIn(ECHO_PIN, HIGH, 5000);
     int distance = duration / 58;
 
-    if (duration == 0) distance = 999;
-
     bool isEmergency = distance > 0 && distance < STOP_DISTANCE_CM;
     if (isEmergency) {
       g_isObstacleDetected = true;  // 전역 플래그 설정
@@ -304,12 +393,21 @@ void prvSensorandTX(void *pvParameters) {
       g_isObstacleDetected = false;  // 전역 플래그 해제
     }
 
+    // Serial.print("Heading: ");
+    // Serial.print(current_angle_deg, 1); // 소수점 첫째 자리까지 출력
+
     ptheta.value = g_robot_theta;
     
+    // Serial.write(0xAA);        // 설정을 안하면 1 byte 
+    // Serial.write(0xBB);
+    // Serial.write(px.bytes, sizeof(px.bytes)); // px.byte 를 4 byte 만큼 전송 
+    // Serial.write(py.bytes, sizeof(px.bytes));
+    // Serial.write(ptheta.bytes, sizeof(px.bytes));
 
     if (isEmergency) tx_byte = 0x02;
     else if (g_rx_error) tx_byte = 0x04;
-    else if (success_move) tx_byte = 0x01; 
+    else if (success_move) tx_byte = 0x01;
+    else if (success_rotate) tx_byte = 0x03;
 
     if(tx_byte != 0x00) {
       Serial.write(0xAA); 
@@ -318,6 +416,7 @@ void prvSensorandTX(void *pvParameters) {
       isEmergency = false;
       g_rx_error = false;
       success_move = false;
+      success_rotate = false;
       tx_byte = 0x00;
     }
 
@@ -335,46 +434,45 @@ double Input, Output, Setpoint;
 double Kp = 1.5, Ki = 0.01, Kd = 0.5; 
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 
+
 void rotate_sequence() {
-    Setpoint = g_target_heading_deg;
-    myPID.SetMode(AUTOMATIC);
-    myPID.SetOutputLimits(-255, 255); 
-    
-    // 타임아웃 추가 (예: 3초 지나면 강제 종료)
-    unsigned long start_time = millis();
+  Setpoint = g_target_heading_deg;
+  myPID.SetMode(AUTOMATIC);
+  myPID.SetOutputLimits(-255, 255); 
+  
+  // 타임아웃 추가 (예: 3초 지나면 강제 종료)
+  unsigned long start_time = millis();
 
-    while (fabs(g_target_heading_deg - mpu.getAngleZ()) > 5.0) {
-        
-        // // 3초 타임아웃 (무한루프 방지) 이러면 돌다가 정확하지 못한 곳에서 멈춰서 이상한곳으로 가는거 아님 ? 
-        // if (millis() - start_time > 3000) break;
+  while (fabs(g_target_heading_deg - mpu.getAngleZ()) > 5.0) {
+      
+      // // 3초 타임아웃 (무한루프 방지) 이러면 돌다가 정확하지 못한 곳에서 멈춰서 이상한곳으로 가는거 아님 ? 
+      // if (millis() - start_time > 3000) break;
 
-        mpu.update();
+      Input = mpu.getAngleZ();
+      myPID.Compute(); 
+      
+      // 1. 절대값 변환
+      int abs_output = abs(Output);
+      int pwm_val = 0;
 
-        Input = mpu.getAngleZ();
-        myPID.Compute(); 
-        
-        // 1. 절대값 변환
-        int abs_output = abs(Output);
-        int pwm_val = 0;
+      // 2. 데드존 매핑 (공식 적용)
+      // PID가 조금이라도 출력(1 이상)을 내면, 모터는 즉시 100부터 시작해서 최대 200까지 비례해서 증가
+      if (abs_output > 0) {
+          pwm_val = map(abs_output, 0, 255, 100, 200); 
+      }
 
-        // 2. 데드존 매핑 (공식 적용)
-        // PID가 조금이라도 출력(1 이상)을 내면, 모터는 즉시 100부터 시작해서 최대 200까지 비례해서 증가
-        if (abs_output > 0) {
-            pwm_val = map(abs_output, 0, 255, 100, 200); 
-        }
+      // 3. 방향 제어
+      if (Output > 0) {
+          Motor_RIGHT(pwm_val);
+      } else if (Output < 0) {
+          Motor_LEFT(pwm_val);
+      } else {
+          Motor_STOP();
+      }
 
-        // 3. 방향 제어
-        if (Output > 0) {
-            Motor_RIGHT(pwm_val);
-        } else if (Output < 0) {
-            Motor_LEFT(pwm_val);
-        } else {
-            Motor_STOP();
-        }
-
-        vTaskDelay(20 / portTICK_PERIOD_MS); 
-    }
-    Motor_STOP();
+      vTaskDelay(20 / portTICK_PERIOD_MS); 
+  }
+  Motor_STOP();
 }
 
 //이동
