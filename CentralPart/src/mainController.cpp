@@ -102,6 +102,20 @@ void MainController::serverThreadFunction()
             
             std::string receivedData(buffer);
             
+            // 먼저 대기 중인 EVENT 메시지 확인 (non-blocking)
+            Message pendingEvent;
+            if(popMessage(pendingEvent, 0)) {  // 0ms timeout = 즉시 반환
+                if(pendingEvent.data.rfind("EVENT:", 0) == 0) {
+                    // EVENT 메시지를 Flask로 전송
+                    std::cout << "📤 Flask로 이벤트 전송: " << pendingEvent.data << std::endl;
+                    webCtrl->send_response(pendingEvent.data.c_str());
+                    continue;  // 이벤트 전송 후 다음 연결 대기
+                } else {
+                    // EVENT가 아니면 다시 큐에 넣기
+                    pushMessage(pendingEvent.priority, pendingEvent.data);
+                }
+            }
+            
             //TODO : message를 처리할 수 있는지 파악해야 함.
             //가령 실제 움직일 수 없다고 moveController가 파악한 경우 해결 방법
             if(receivedData == "up" || receivedData == "down" || receivedData == "left" 
@@ -232,6 +246,9 @@ void MainController::serverThreadFunction()
                 }
                 // moveCtrl한테 도착 했으니 각도 알려주고 camera 돌리기
                 bool orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", lastOrientation, mapper->getIndexOfFeatureByName(featureName));
+                
+                
+
                 //
                 webCtrl->send_response("MoveToDONE");
                 currentMode = Mode::NAVIGATINGDONE;
@@ -307,6 +324,25 @@ void MainController::startSearchingPath() {
             bool currentIsFeature = false;
             for(const auto& feature : currentFeatures) {
                 if(feature.position == currentPos) {
+                    
+                    // 특징점 위치 도착 및 재고 업데이트 진행.
+                    std::pair<int,int> inventoryUpdate = camCtrl->updateInventory();
+                    int inventoryID = inventoryUpdate.first;
+                    int boxCount = inventoryUpdate.second;
+                    
+                    std::cout << "🎯 특징점 도착: " << feature.name 
+                              << " | 재고ID: " << inventoryID 
+                              << " | 상자수: " << boxCount << std::endl;
+                    
+                    // Flask에 재고 업데이트 메시지 전송 (Unix 소켓)
+                    // inventoryID(제품 이름)로 DB의 name 필드와 매칭
+                    if (inventoryID > 0) {  // 유효한 inventoryID인 경우만 전송
+                        std::string payload = R"({"inventoryID": )" + std::to_string(inventoryID) + 
+                                                R"(, "featureName": ")" + feature.name +
+                                                R"(", "boxCount": )" + std::to_string(boxCount) + "}";
+                        sendTriggerToFlask("inventory_update", payload);
+                    }
+
                     currentIsFeature = true;
                     bool alreadyVisited = false;
                     for(const auto& visited : currentVisited) {
@@ -334,9 +370,7 @@ void MainController::startSearchingPath() {
                     }
                     break;
                 }
-            }
-            
-            // 다음 목표 특징점으로 경로 찾기 (현재 방문 상태 업데이트 후)
+            }            // 다음 목표 특징점으로 경로 찾기 (현재 방문 상태 업데이트 후)
             {
                 std::lock_guard<std::mutex> lock(visitedMutex);
                 currentVisited = visitedFeatures;
@@ -443,6 +477,13 @@ std::string MainController::interpretMessage()
     Message msg;
     if(popMessage(msg, 5000)){
         std::string ACKMSG = "";
+        
+        // EVENT 메시지 처리 (C++에서 Flask로 전송할 이벤트)
+        if(msg.data.rfind("EVENT:", 0) == 0){
+            // Flask가 다음 요청에서 이 이벤트를 받아갈 수 있도록 반환
+            return msg.data;  // "EVENT:inventory_update:{json}"
+        }
+        
         if(msg.data == "up" || msg.data == "down" || msg.data == "left" || msg.data == "right" || msg.data == "doneMapping"){
             
             ACKMSG = mapper->getMappingMessages(msg.data.c_str());
@@ -512,12 +553,55 @@ std::string MainController::getMapAsJson()
 
     for (size_t i = 0; i < featureData.size(); ++i) {
         if (i > 0) ss << ",";
+        
+        // name 필드의 특수문자 이스케이프 (JSON 안전성)
+        std::string safeName = featureData[i].name;
+        size_t pos = 0;
+        while ((pos = safeName.find("\"", pos)) != std::string::npos) {
+            safeName.replace(pos, 1, "\\\"");
+            pos += 2;
+        }
+        while ((pos = safeName.find("\\", pos)) != std::string::npos) {
+            if (pos + 1 >= safeName.length() || safeName[pos + 1] != '\"') {
+                safeName.replace(pos, 1, "\\\\");
+                pos += 2;
+            } else {
+                pos += 2;
+            }
+        }
+        
         ss << "{\"y\": " << featureData[i].position.first 
            << ",\"x\": " << featureData[i].position.second 
-           << ",\"name\": \"" << featureData[i].name << "\"}";
+           << ",\"name\": \"" << safeName << "\"}";
     }
     
     ss << "] }";
 
     return ss.str();
+}
+
+// Unix 소켓으로 Flask에 이벤트 전송
+void MainController::sendTriggerToFlask(const std::string& eventType, const std::string& jsonPayload)
+{
+    if (!webCtrl) {
+        std::cerr << "❌ WebController가 초기화되지 않았습니다." << std::endl;
+        return;
+    }
+    
+    // 메시지 형식: "EVENT:eventType:jsonPayload"
+    std::string message = "EVENT:" + eventType + ":" + jsonPayload;
+    
+    std::cout << "📤 Flask로 이벤트 전송 시도: " << eventType << std::endl;
+    
+    // C++ -> Flask 이벤트 전용 소켓 (별도 경로)
+    const char* FLASK_EVENT_SOCKET = "/tmp/cppToFlask.sock";
+    
+    // 능동적으로 Flask 이벤트 수신 서버에 연결하여 전송
+    bool success = webCtrl->send_event_to_flask(message.c_str(), FLASK_EVENT_SOCKET);
+    
+    if (!success) {
+        // 전송 실패 시 메시지 큐에 추가 (다음 Flask 요청 시 전달)
+        std::cerr << "⚠️ 즉시 전송 실패, 큐에 추가" << std::endl;
+        pushMessage(0, message);
+    }
 }

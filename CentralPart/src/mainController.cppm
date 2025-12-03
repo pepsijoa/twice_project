@@ -94,4 +94,7 @@ public:
     
     // 맵 데이터를 JSON 형식으로 반환
     std::string getMapAsJson();
+    
+    // Flask로 데이터 전송 (이벤트 트리거)
+    void sendTriggerToFlask(const std::string& eventType, const std::string& jsonPayload);
 };

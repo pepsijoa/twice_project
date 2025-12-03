@@ -111,6 +111,9 @@ function displayInventoryMap(mapData, targetLocation) {
     const featureMap = new Map();
     let targetFeaturePos = null;
     
+    console.log('🔍 Feature 검색 시작 - targetLocation:', targetLocation);
+    console.log('📍 Features 배열:', featuresArray);
+    
     for (let i = 0; i < featuresArray.length; i++) {
         const feature = featuresArray[i];
         const key = `${feature.x},${feature.y}`;
@@ -121,10 +124,18 @@ function displayInventoryMap(mapData, targetLocation) {
             y: feature.y
         });
         
-        // 목표 위치 찾기
-        if (feature.name === targetLocation) {
-            targetFeaturePos = {x: feature.x, y: feature.y};
+        console.log(`   - Feature ${i + 1}: "${feature.name}" vs "${targetLocation}"`);
+        
+        // 목표 위치 찾기 (공백 제거 후 대소문자 무시 비교)
+        if (feature.name && targetLocation && 
+            feature.name.trim().toLowerCase() === targetLocation.trim().toLowerCase()) {
+            targetFeaturePos = {x: feature.x, y: feature.y, name: feature.name};
+            console.log('✅ 목표 위치 찾음!', targetFeaturePos);
         }
+    }
+    
+    if (!targetFeaturePos) {
+        console.warn('⚠️ 목표 위치를 찾지 못했습니다. targetLocation:', targetLocation);
     }
     
     // 로봇 현재 위치 찾기
@@ -269,8 +280,12 @@ function displayInventoryMap(mapData, targetLocation) {
 
     // 범례/액션 박스 생성 (아래에 배치)
     let actionHtml = '';
+    console.log('🎯 targetFeaturePos 확인:', targetFeaturePos);
+    console.log('🤖 robotPos 확인:', robotPos);
+    
     if (targetFeaturePos) {
         const isRobotAtTarget = robotPos && robotPos.x === targetFeaturePos.x && robotPos.y === targetFeaturePos.y;
+        console.log('✅ 액션 박스 생성 중... isRobotAtTarget:', isRobotAtTarget);
 
         actionHtml = `
             <div style="width: 100%; max-width: 820px; box-sizing: border-box; padding: 12px; background: #f8f9fa; border-radius: 10px; text-align: center;">
@@ -303,6 +318,20 @@ function displayInventoryMap(mapData, targetLocation) {
                         <button onclick="closeMapModal()" style="background:#e0e0e0; border:none; padding:12px 20px; border-radius:20px; font-size:15px;">닫기</button>
                     </div>`
                 }
+            </div>
+        `;
+    } else {
+        console.warn('⚠️ targetFeaturePos가 null이어서 액션 박스를 생성하지 않습니다.');
+        console.warn('   - targetLocation:', targetLocation);
+        console.warn('   - features 배열 길이:', featuresArray.length);
+        actionHtml = `
+            <div style="width: 100%; max-width: 820px; box-sizing: border-box; padding: 12px; background: #fff3cd; border-radius: 10px; text-align: center; border: 2px solid #ffc107;">
+                <p style="font-size: 16px; color: #856404; margin: 0;">
+                    ⚠️ "<strong>${targetLocation}</strong>" 위치를 맵에서 찾을 수 없습니다.
+                </p>
+                <p style="font-size: 14px; color: #856404; margin: 8px 0 0 0;">
+                    해당 특징점이 등록되어 있는지 확인해주세요.
+                </p>
             </div>
         `;
     }

@@ -13,10 +13,46 @@ import database as db
 load_dotenv()
 
 app = Flask(__name__)
-SOCKET_PATH = "/tmp/flaskToCPP.sock"
+SOCKET_PATH = "/tmp/flaskToCPP.sock"  # Flask -> C++ 통신용
+CPP_EVENT_SOCKET = "/tmp/cppToFlask.sock"  # C++ -> Flask 이벤트 수신용
 
 # 소켓 통신을 위한 스레드 락
 socket_lock = threading.Lock()
+
+# C++ 이벤트 수신 서버 스레드
+def cpp_event_listener():
+    """
+    C++에서 보내는 이벤트를 수신하는 별도 소켓 서버
+    """
+    # 기존 소켓 파일 제거
+    if os.path.exists(CPP_EVENT_SOCKET):
+        os.unlink(CPP_EVENT_SOCKET)
+    
+    # Unix 소켓 서버 생성
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(CPP_EVENT_SOCKET)
+    server.listen(5)
+    print(f"✅ C++ 이벤트 수신 서버 시작: {CPP_EVENT_SOCKET}")
+    
+    while True:
+        try:
+            conn, _ = server.accept()
+            data = conn.recv(4096).decode('utf-8').strip()
+            
+            if data.startswith("EVENT:"):
+                print(f"📥 C++ 이벤트 수신: {data[:50]}...")
+                handle_cpp_event(data)
+                conn.send(b"OK\n")
+            else:
+                conn.send(b"ERROR:Invalid format\n")
+            
+            conn.close()
+        except Exception as e:
+            print(f"❌ C++ 이벤트 수신 오류: {e}")
+
+# C++ 이벤트 리스너 스레드 시작
+event_listener_thread = threading.Thread(target=cpp_event_listener, daemon=True)
+event_listener_thread.start()
 
 # 안전한 소켓 통신 헬퍼 함수
 def safe_socket_communication(command, buffer_size=4096, timeout=5, max_retries=3):
@@ -39,6 +75,12 @@ def safe_socket_communication(command, buffer_size=4096, timeout=5, max_retries=
                             break # 타임아웃 시 받은 데이타까지만 처리
                     
                     response = data.decode('utf-8')
+                    
+                    # C++에서 보낸 EVENT 메시지 처리
+                    if response.startswith("EVENT:"):
+                        handle_cpp_event(response)
+                        return True, "EVENT_PROCESSED"
+                    
                     return True, response
                     
             except socket.timeout:
@@ -59,6 +101,87 @@ def safe_socket_communication(command, buffer_size=4096, timeout=5, max_retries=
                 
             finally:
                 time.sleep(0.02)  # 20ms로 단축
+
+# C++에서 보낸 이벤트 처리
+def handle_cpp_event(event_message):
+    """
+    C++에서 보낸 EVENT 메시지 처리
+    형식: EVENT:eventType:jsonPayload
+    """
+    try:
+        parts = event_message.split(":", 2)  # 최대 3개로 분할
+        if len(parts) < 3:
+            print(f"⚠️ 잘못된 이벤트 형식: {event_message}")
+            return
+        
+        event_type = parts[1]
+        json_payload = parts[2]
+        
+        print(f"🎯 C++ 이벤트 수신: {event_type}")
+        
+        if event_type == "inventory_update":
+            # JSON 파싱
+            payload = json.loads(json_payload)
+            inventory_id = payload.get('inventoryID')  # 제품 이름(정수)
+            feature_name = payload.get('featureName')  # 위치 (location)
+            box_count = payload.get('boxCount')
+            
+            if inventory_id is not None and feature_name and box_count is not None:
+                print(f"📊 재고 업데이트 요청: 제품ID={inventory_id}, 위치={feature_name}, 수량={box_count}")
+                
+                # EVENT는 신뢰할 수 있으므로 무조건 DB 업데이트
+                try:
+                    # 먼저 모든 재고 조회 (디버깅용)
+                    all_items = db.get_all_inventory()
+                    print(f"🔍 현재 DB 재고 목록: {[(item['name'], item['location'], item['id']) for item in all_items]}")
+                    
+                    # 같은 제품명(name)과 위치(location)를 가진 재고 찾기
+                    item = None
+                    for existing_item in all_items:
+                        if existing_item['name'] == str(inventory_id) and existing_item['location'] == feature_name:
+                            item = existing_item
+                            break
+                    
+                    print(f"🔎 조회 결과: name={str(inventory_id)}, location={feature_name} → {item}")
+                    
+                    if item:
+                        # 기존 재고가 있으면 수량만 업데이트
+                        print(f"📝 업데이트 시도: ID={item['id']}, quantity={box_count}")
+                        success = db.update_inventory(
+                            item['id'],
+                            quantity=box_count
+                        )
+                        print(f"✅ 업데이트 결과: {success}")
+                        
+                        if success:
+                            print(f"✅ 재고 업데이트 완료: 제품={inventory_id}, 위치={feature_name}, 수량={box_count}개")
+                        else:
+                            print(f"❌ 재고 업데이트 실패: 제품ID={inventory_id}")
+                    else:
+                        # 해당 위치에 재고가 없으면 새로 생성
+                        print(f"🆕 새 재고 생성 시도: name={inventory_id}, location={feature_name}, quantity={box_count}")
+                        new_id = db.add_inventory(
+                            name=str(inventory_id),
+                            quantity=box_count,
+                            location=feature_name
+                        )
+                        if new_id:
+                            print(f"✅ 새 재고 생성 완료: ID={new_id}, 제품={inventory_id}, 위치={feature_name}, 수량={box_count}개")
+                        else:
+                            print(f"❌ 새 재고 생성 실패: 제품ID={inventory_id}")
+                        
+                except Exception as db_error:
+                    print(f"❌ 데이터베이스 오류: {db_error}")
+            else:
+                print(f"⚠️ 필수 필드 누락: inventoryID={inventory_id}, featureName={feature_name}, boxCount={box_count}")
+        
+        else:
+            print(f"⚠️ 알 수 없는 이벤트 타입: {event_type}")
+    
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON 파싱 오류: {e}")
+    except Exception as e:
+        print(f"❌ 이벤트 처리 오류: {e}")
             
 @app.after_request
 def add_security_headers(response):

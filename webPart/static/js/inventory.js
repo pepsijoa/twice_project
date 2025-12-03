@@ -18,6 +18,98 @@ async function loadInventory() {
     }
 }
 
+// 자동 새로고침 시작 (C++ 이벤트로 인한 DB 변경 감지)
+function startAutoRefresh(interval = 2000) {
+    // 2초마다 재고 데이터 자동 업데이트
+    setInterval(async () => {
+        try {
+            const response = await fetch('/api/inventory');
+            const data = await response.json();
+            
+            if (data.status === 'success' && data.items) {
+                // 조용히 업데이트 (스크롤 위치 유지)
+                updateInventoryQuietly(data.items);
+            }
+        } catch (error) {
+            // 에러는 무시 (사용자 경험 방해 안 함)
+        }
+    }, interval);
+}
+
+// 조용한 업데이트 (DOM 재구성하지 않고 필요한 부분만 업데이트)
+function updateInventoryQuietly(items) {
+    if (!items || items.length === 0) return;
+    
+    const grid = document.getElementById('inventoryGrid');
+    let hasNewItem = false;
+    let addedItemIds = [];
+    
+    // 기존 항목 검사 및 업데이트
+    items.forEach(item => {
+        const card = document.querySelector(`[data-id="${item.id}"]`);
+        
+        if (card) {
+            // 기존 카드 업데이트
+            const quantityEl = card.querySelector(`#quantity-${item.id}`);
+            if (quantityEl) {
+                const newQuantity = item.quantity;
+                const oldQuantity = parseInt(quantityEl.textContent);
+                
+                // 수량이 변경되었으면 업데이트
+                if (oldQuantity !== newQuantity) {
+                    console.log(`📊 재고 자동 업데이트: 제품 ${item.id} (${oldQuantity} → ${newQuantity}개)`);
+                    quantityEl.textContent = `${newQuantity}개`;
+                    
+                    // 색상 클래스 업데이트
+                    quantityEl.className = 'quantity';
+                    if (newQuantity >= 10) {
+                        quantityEl.classList.add('high');
+                    } else if (newQuantity >= 5) {
+                        quantityEl.classList.add('medium');
+                    } else {
+                        quantityEl.classList.add('low');
+                    }
+                    
+                    // 카드 강조 (애니메이션)
+                    card.style.animation = 'pulse 0.5s ease-in-out';
+                    setTimeout(() => {
+                        card.style.animation = '';
+                    }, 500);
+                }
+            }
+            
+            // 위치 업데이트
+            const locationEl = card.querySelector('.item-info:nth-child(3)');
+            if (locationEl) {
+                const newLocation = item.location;
+                const oldLocation = locationEl.textContent.split('위치: ')[1]?.trim();
+                
+                if (oldLocation !== newLocation) {
+                    console.log(`📍 위치 변경 감지: 제품 ${item.id} (${oldLocation} → ${newLocation})`);
+                    locationEl.innerHTML = `<span class="item-label">위치:</span> ${escapeHtml(newLocation)}`;
+                }
+            }
+            
+            // 업데이트 시간 업데이트
+            const updateEl = card.querySelector('.item-info:nth-child(4)');
+            if (updateEl && item.updated_at) {
+                updateEl.innerHTML = `<span class="item-label">최종 업데이트:</span> ${item.updated_at}`;
+            }
+        } else {
+            // 새로운 재고 추가됨 (카드가 없으면 나중에 추가)
+            hasNewItem = true;
+            addedItemIds.push(item.id);
+            console.log(`🆕 새 재고 감지: 제품 ${item.id} - 추가 대기`);
+        }
+    });
+    
+    // 새로운 항목이 있으면 전체 새로고침
+    if (hasNewItem) {
+        console.log(`✨ ${addedItemIds.length}개 새 재고 추가 - 전체 새로고침`);
+        displayInventory(items);
+    }
+}
+
 // 재고 카드 표시
 function displayInventory(items) {
     const grid = document.getElementById('inventoryGrid');
@@ -371,6 +463,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 재고 로드
     loadInventory();
+    
+    // ⭐ 자동 새로고침 시작 (C++ 이벤트로 인한 DB 변경 감지)
+    startAutoRefresh(2000);  // 2초마다 확인
+    console.log('🔄 자동 재고 업데이트 시작 (2초 간격)');
     
     // 검색 기능 초기화
     initializeSearch();

@@ -182,7 +182,9 @@ def update_inventory(item_id, name=None, quantity=None, location=None):
                 sql = f"UPDATE inventory SET {', '.join(updates)} WHERE id = %s"
                 cursor.execute(sql, params)
                 conn.commit()
-                return cursor.rowcount > 0
+                # rowcount가 0이어도 업데이트 쿼리가 실행되었으면 성공 처리
+                # (같은 값으로 업데이트하면 MySQL이 rowcount=0 반환)
+                return cursor.rowcount >= 0
     except Error as e:
         print(f"재고 수정 오류 (ID: {item_id}): {e}")
         return False
@@ -225,6 +227,27 @@ def get_inventory_by_location(location):
     except Error as e:
         print(f"위치별 재고 조회 오류 (location: {location}): {e}")
         return []
+
+def get_inventory_by_name(name):
+    """
+    제품 이름으로 재고 조회 (inventoryID와 매칭)
+    Args:
+        name: 제품 이름 (정수 문자열)
+    Returns: dict or None
+    """
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, name, quantity, location, 
+                           DATE_FORMAT(updated_at, '%%Y-%%m-%%d') as updated_at
+                    FROM inventory
+                    WHERE name = %s
+                """, (name,))
+                return cursor.fetchone()
+    except Error as e:
+        print(f"제품명 재고 조회 오류 (name: {name}): {e}")
+        return None
 
 def update_quantity(item_id, quantity_change):
     """
