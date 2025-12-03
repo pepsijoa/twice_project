@@ -3,17 +3,65 @@
 # 전체 시스템 실행 스크립트
 echo "🚀 IoT 컨트롤 시스템을 시작합니다..."
 
-# 기존 Flask 서버 종료
-echo "🛑 기존 Flask 서버 종료 중..."
+# 스크립트 디렉토리 설정 (절대 경로로 변환)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+echo "📂 프로젝트 디렉토리: $SCRIPT_DIR"
+
+# PID 저장 변수
+CAM_PID=""
+CPP_PID=""
+FLASK_PID=""
+
+# 정리 함수
+cleanup() {
+    echo ""
+    echo "🛑 시스템 종료 중..."
+    
+    # Flask 서버 종료
+    if [ ! -z "$FLASK_PID" ] && kill -0 $FLASK_PID 2>/dev/null; then
+        echo "  → Flask 서버 종료 (PID: $FLASK_PID)"
+        kill -TERM $FLASK_PID 2>/dev/null
+        sleep 1
+        kill -9 $FLASK_PID 2>/dev/null
+    fi
+    pkill -f "python.*app.py" 2>/dev/null || true
+    
+    # C++ 서버 종료
+    if [ ! -z "$CPP_PID" ] && kill -0 $CPP_PID 2>/dev/null; then
+        echo "  → C++ 서버 종료 (PID: $CPP_PID)"
+        kill -TERM $CPP_PID 2>/dev/null
+        sleep 1
+        kill -9 $CPP_PID 2>/dev/null
+    fi
+    pkill -f "twiceproject" 2>/dev/null || true
+    
+    # 카메라 서버 종료
+    if [ ! -z "$CAM_PID" ] && kill -0 $CAM_PID 2>/dev/null; then
+        echo "  → 카메라 서버 종료 (PID: $CAM_PID)"
+        kill -TERM $CAM_PID 2>/dev/null
+        sleep 1
+        kill -9 $CAM_PID 2>/dev/null
+    fi
+    pkill -f "cam.py" 2>/dev/null || true
+    
+    # 소켓 파일 정리
+    echo "  → 소켓 파일 정리"
+    rm -f /tmp/flaskToCPP.sock
+    rm -f /tmp/aruco_socket
+    
+    echo "✅ 시스템 종료 완료!"
+    exit 0
+}
+
+# 시그널 트랩 설정 (Ctrl+C, kill 등)
+trap cleanup SIGINT SIGTERM SIGHUP EXIT
+
+# 기존 프로세스 정리
+echo "🛑 기존 프로세스 종료 중..."
 pkill -f "python.*app.py" 2>/dev/null || true 
-sleep 2
-
-# 기존 C++ 서버 종료
-echo "🛑 기존 C++ 서버 종료 중..."
 pkill -f "twiceproject" 2>/dev/null || true
-sleep 1
-
-
+pkill -f "cam.py" 2>/dev/null || true
+sleep 2
 
 # 기존 소켓 파일 삭제
 echo "📁 기존 소켓 파일 정리..."
@@ -21,17 +69,32 @@ rm -f /tmp/flaskToCPP.sock
 rm -f /tmp/aruco_socket
 
 # 카메라 서버 실행
-python3 /home/kkw/iotclass/twice_project/camPart/cam.py &
+echo "📷 카메라 서버 시작 중..."
+python3 "$SCRIPT_DIR/camPart/cam.py" &
+CAM_PID=$!
+echo "📋 카메라 서버 PID: $CAM_PID"
+sleep 2
+
+# 카메라 서버 상태 확인
+if ! kill -0 $CAM_PID 2>/dev/null; then
+    echo "❌ 카메라 서버 시작 실패!"
+    exit 1
+fi
+echo "✅ 카메라 서버 시작 완료!"
 
 # C++ 프로젝트 디렉토리로 이동하여 빌드
-cd /home/kkw/iotclass/twice_project/CentralPart
-echo "🔨 C++ 프로젝트 빌드 확인..."
-cmake --build build
+cd "$SCRIPT_DIR/CentralPart"
+echo "🔨 C++ 프로젝트 빌드 중..."
+rm -rf build
+mkdir build
+cd build
+cmake -G Ninja ..
+ninja
 
 # C++ 서버 실행
-if [ -f "build/twiceproject" ]; then
+if [ -f "twiceproject" ]; then
     echo "✅ C++ 서버 시작 중..."
-    ./build/twiceproject &
+    ./twiceproject &
     CPP_PID=$!
     echo "📋 C++ 서버 PID: $CPP_PID"
     
@@ -42,11 +105,12 @@ if [ -f "build/twiceproject" ]; then
         
         # Flask 서버 시작
         echo "🌐 Flask 웹 서버 시작 중..."
-        cd /home/kkw/iotclass/twice_project/webPart
+        cd "$SCRIPT_DIR/webPart"
         
         # 가상환경 활성화 (있다면)
-        if [ -f "/home/kkw/iotclass/vkkw/bin/activate" ]; then
-            source /home/kkw/iotclass/vkkw/bin/activate
+        VENV_PATH="$SCRIPT_DIR/../vkkw/bin/activate"
+        if [ -f "$VENV_PATH" ]; then
+            source "$VENV_PATH"
             echo "🐍 Python 가상환경 활성화됨"
         fi
         
@@ -68,13 +132,23 @@ if [ -f "build/twiceproject" ]; then
         
         # Flask 서버 실행 (포그라운드)
         export FLASK_PORT=$PORT
-        python app.py
+        python app.py &
+        FLASK_PID=$!
+        echo "📋 Flask 서버 PID: $FLASK_PID"
         
-        # Flask 서버가 종료되면 C++ 서버도 종료
         echo ""
-        echo "🛑 Flask 서버가 종료되었습니다. C++ 서버도 종료합니다..."
-        kill $CPP_PID 2>/dev/null
-        echo "✅ 시스템 종료 완료!"
+        echo "✅ 전체 시스템 시작 완료!"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📋 실행 중인 프로세스:"
+        echo "  • 카메라 서버: $CAM_PID"
+        echo "  • C++ 서버:    $CPP_PID"
+        echo "  • Flask 서버:  $FLASK_PID"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🛑 시스템 종료: Ctrl+C"
+        echo ""
+        
+        # Flask 프로세스 모니터링
+        wait $FLASK_PID
         
     else
         echo "❌ C++ 서버 시작 실패!"

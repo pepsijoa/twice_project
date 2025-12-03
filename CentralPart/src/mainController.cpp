@@ -132,7 +132,7 @@ void MainController::serverThreadFunction()
                     bool moveSuccess = moveCtrl->processCommand(receivedData);
                     //bool moveSuccess = true;
                     std::cout << "After " << receivedData << std::endl;
-                    //bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
+                    
                     lastOrientation = receivedData;
                     if(moveSuccess){
                         webCtrl->send_response("ACK");
