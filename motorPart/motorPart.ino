@@ -188,7 +188,7 @@ void prvRX(void *pvParameters) {
 }
 
 float g_target_heading_deg;
-float TARGET_CM = 20;
+float TARGET_CM = 5;
 
 void prvMotorTask(void *pvParameters) {
   (void) pvParameters;
