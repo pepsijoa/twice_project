@@ -37,6 +37,7 @@ volatile float g_robot_theta = 0.0;
 
 bool success_move = false;
 bool success_rotate = false;
+bool success_save = false;
 
 MPU6050 mpu(Wire);
 
@@ -272,39 +273,35 @@ void prvMotorTask(void *pvParameters) {
           break;
         case MAPPING_UP:
           g_target_heading_deg = 0.0f;
-          rotate_sequence();
           if (g_mapping_count < 30) {
             g_mapping_buffer[g_mapping_count] = 0.0f; 
             g_mapping_count++;
           }
-          if (!g_isObstacleDetected) success_rotate = true;
+          success_save = true;
           break;
         case MAPPING_DOWN:
           g_target_heading_deg = 180.0f;
-          rotate_sequence();
           if (g_mapping_count < 30) {
             g_mapping_buffer[g_mapping_count] = 180.0f; 
             g_mapping_count++;
           }
-          if (!g_isObstacleDetected) success_rotate = true;
+          success_save = true;
           break;
         case MAPPING_LEFT:
           g_target_heading_deg = -90.0f;
-          rotate_sequence();
           if (g_mapping_count < 30) {
             g_mapping_buffer[g_mapping_count] = -90.0f; 
             g_mapping_count++;
           }
-          if (!g_isObstacleDetected) success_rotate = true;
+          success_save = true;
           break;
         case MAPPING_RIGHT:
           g_target_heading_deg = 90.0f;
-          rotate_sequence();
           if (g_mapping_count < 30) { 
             g_mapping_buffer[g_mapping_count] = 90.0f; 
             g_mapping_count++;
           }
-          if (!g_isObstacleDetected) success_rotate = true;
+          success_save = true;
           break;
         case MAPPED:
           if (g_mapped_index < g_mapping_count) {
@@ -400,6 +397,7 @@ void prvSensorandTX(void *pvParameters) {
     else if (g_rx_error) tx_byte = 0x04;
     else if (success_move) tx_byte = 0x01;
     else if (success_rotate) tx_byte = 0x03;
+    else if (success_save) tx_byte = 0x05;
 
     if(tx_byte != 0x00) {
       Serial.write(0xAA); 
@@ -409,6 +407,7 @@ void prvSensorandTX(void *pvParameters) {
       g_rx_error = false;
       success_move = false;
       success_rotate = false;
+      success_save = false;
       tx_byte = 0x00;
     }
 
@@ -419,9 +418,8 @@ void prvSensorandTX(void *pvParameters) {
 // 전역 변수 (PID 제어 변수 선언)
 double Input, Output, Setpoint;
 // Kp, Ki, Kd 값은 실험을 통해 튜닝해야 함
-double Kp = 1.5, Ki = 0.01, Kd = 0.5; 
+double Kp = 1.0, Ki = 0.01, Kd = 0.5; 
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
-
 
 void rotate_sequence() {
   Setpoint = g_target_heading_deg;
@@ -446,7 +444,7 @@ void rotate_sequence() {
       // 2. 데드존 매핑 (공식 적용)
       // PID가 조금이라도 출력(1 이상)을 내면, 모터는 즉시 100부터 시작해서 최대 200까지 비례해서 증가
       if (abs_output > 0) {
-          pwm_val = map(abs_output, 0, 255, 100, 200); 
+          pwm_val = map(abs_output, 0, 255, 100, 255); 
       }
 
       // 3. 방향 제어
@@ -508,7 +506,7 @@ void move_sequence(uint8_t target_cm) {
 
 void motor_speed(int spd)  
 {  
-  analogWrite(ENABLE_A,spd);  
+  analogWrite(ENABLE_A,spd + 20);  
   analogWrite(ENABLE_B,spd);  
 }
 
@@ -518,7 +516,7 @@ void Motor_UP() {
 
   digitalWrite(MOTOR_B_IN1, HIGH);
   digitalWrite(MOTOR_B_IN2, LOW);
-  motor_speed(180);
+  motor_speed(200);
 }
 
 void Motor_STOP() {
@@ -527,7 +525,6 @@ void Motor_STOP() {
 
   digitalWrite(MOTOR_B_IN1, LOW);
   digitalWrite(MOTOR_B_IN2, LOW);
-  motor_speed(150);
 }
 
 void Motor_LEFT(int spd) {
@@ -546,13 +543,4 @@ void Motor_RIGHT(int spd) {
   digitalWrite(MOTOR_B_IN1, HIGH);
   digitalWrite(MOTOR_B_IN2, LOW);
   motor_speed(spd);
-}
-
-void Motor_DOWN() {
-  digitalWrite(MOTOR_A_IN1, LOW);
-  digitalWrite(MOTOR_A_IN2, HIGH);
-
-  digitalWrite(MOTOR_B_IN1, LOW);
-  digitalWrite(MOTOR_B_IN2, HIGH);
-  motor_speed(150);
 }
