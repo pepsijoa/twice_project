@@ -9,6 +9,7 @@ module;
 #include <condition_variable>
 #include <chrono>
 #include <sstream>
+#include <cstdint>
 
 module mainController;
 
@@ -219,17 +220,17 @@ void MainController::serverThreadFunction()
                     pre = path[i];
                     stepCount++;
                     
-                    bool moveSuccess = moveCtrl->processCommand(direction);
+                    int moveSuccess = moveCtrl->processCommand(direction);
                     lastOrientation = direction;
                     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
-                    if(moveSuccess == false)
+                    if(moveSuccess != 1)
                     {
                         std::string failMsg = "MoveToFAIL:" + direction + ":" + std::to_string(stepCount);
                         webCtrl->send_response(failMsg.c_str());
                         break;
                     }
-                    else if (moveSuccess == true)
+                    else if (moveSuccess == 1)
                     {
                         std::string okMsg = "MoveToOK:" + direction + ":" + std::to_string(stepCount);
                         webCtrl->send_response(okMsg.c_str());
@@ -237,8 +238,8 @@ void MainController::serverThreadFunction()
                         std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     }
                 }
-                // moveCtrl한테 도착 했으니 각도 알려주고 camera 돌리기
-                 bool orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", lastOrientation, mapper->getIndexOfFeatureByName(featureName));
+                // // moveCtrl한테 도착 했으니 각도 알려주고 camera 돌리기
+                //  int orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", lastOrientation, mapper->getIndexOfFeatureByName(featureName));
                 
                 
 
@@ -318,14 +319,26 @@ void MainController::startSearchingPath() {
                 if(feature.position == currentPos) {
                     
                     //특징점 위치 도착 및 해당 지점에서 방향 확인하기.
-                    // 1. 특징점 도착 맞는지 디버그.
-                    bool orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", "", mapper->getIndexOfFeatureByName(feature.name));
-                    // 2. 함수에서 제대로 처리하는 지 
+                    std::cout << "\n🎯 ===== 특징점 도착 처리 시작 =====" << std::endl;
+                    std::cout << "특징점 이름: " << feature.name << std::endl;
+                    int idx = mapper->getIndexOfFeatureByName(feature.name);
+                    std::cout << "특징점 인덱스: " << idx << std::endl;
                     
-                    if(!orientSuccess){
-                        std::cout << "특징점 도착, 방향 전환 실패.." << std::endl;
-                        continue;
+                    if(idx < 0 || idx > 15) {
+                        std::cerr << "⚠️ 경고: 유효하지 않은 인덱스 (0-15 범위 벗어남)" << std::endl;
                     }
+                    
+                    uint8_t idx_byte = static_cast<uint8_t>(idx);
+                    std::cout << "uint8_t 변환 후: " << (int)idx_byte << std::endl;
+                    
+                    // int orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", "", idx_byte);
+                    // std::cout << "응답 상태 코드: " << orientSuccess << std::endl;
+                    // std::cout << "===== 특징점 도착 처리 완료 =====\n" << std::endl;
+
+                    // if(orientSuccess == -1){
+                    //     std::cout << "특징점 도착, 방향 전환 실패.." << std::endl;
+                    //     continue;
+                    // }
                     
                     // 특징점에서 제데로 사진 찍는지.
                     std::vector<std::pair<int,int>> inventoryUpdates = camCtrl->updateInventory();
@@ -414,13 +427,13 @@ void MainController::startSearchingPath() {
                 
                 
                 // 실제 moveController 호출 (주석 해제 필요)
-                bool moveSuccess = moveCtrl->processCommand(direction);
+                int moveSuccess = moveCtrl->processCommand(direction);
                 //bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
                 lastOrientation = direction;
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(2000));
                 
-                if(moveSuccess == false) {
+                if(moveSuccess == 2) {
                     mapper->updateSearchingResult(point, -1);
                     pathCompleted = false;
                     targetFeature = "";  // 실패 시 목표 초기화

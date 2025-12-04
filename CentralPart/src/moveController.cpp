@@ -102,7 +102,7 @@ bool MoveController::isReady() const {
 }
 
 // 명령 처리
-int MoveController::processCommand(const std::string& msg, const std::string& orientation, const int mappedIndex) {
+int MoveController::processCommand(const std::string& msg, const std::string& orientation, const uint8_t mappedIndex) {
     if (serial_fd < 0) {
         std::cerr << "MoveController: 시리얼 포트가 유효하지 않습니다." << std::endl;
         return -1; // 초기화 실패 상태
@@ -129,7 +129,9 @@ int MoveController::processCommand(const std::string& msg, const std::string& or
     
     else if (msg == "mapped_feature_arrive") {
         //todo : mappedIndex는 15 이하의 값이어야 함
+        std::cout << "[DEBUG] mapped_feature_arrive - 입력 idx: " << (int)mappedIndex << std::endl;
         command_to_arduino = (mappedIndex & 0b00001111);
+        std::cout << "[DEBUG] 최종 명령: 0x" << std::hex << (int)command_to_arduino << std::dec << " (" << (int)command_to_arduino << ")" << std::endl;
     }
     else {
         std::cout << "MoveController: 처리할 수 없는 명령 [" << msg << "]" << std::endl;
@@ -143,6 +145,9 @@ int MoveController::processCommand(const std::string& msg, const std::string& or
 
 int MoveController::sendCommandToArduino(uint8_t cmd) {
     tcflush(serial_fd, TCIOFLUSH); // 송수신 버퍼 비우기
+    
+    std::cout << "[TX] 전송할 명령: 0x" << std::hex << (int)cmd << std::dec << " (" << (int)cmd << ")" << std::endl;
+    
     if (write(serial_fd, &cmd, 1) != 1) {
         std::cerr << "MoveController: 아두이노에 쓰기 실패" << std::endl;
         return -1; // Error
@@ -150,8 +155,8 @@ int MoveController::sendCommandToArduino(uint8_t cmd) {
 
     uint8_t buffer[3] = {0, };
     int total_read = 0;
-    int timeout_check = 0;
-    
+    int timeout_check = 0; 
+
     while(total_read <3){
         int n = read(serial_fd, buffer + total_read, 3 - total_read);
         if(n > 0){
@@ -169,10 +174,10 @@ int MoveController::sendCommandToArduino(uint8_t cmd) {
 
     if (buffer[0] == 0xAA && buffer[1] == 0xBB) {
         uint8_t status = buffer[2];
-        std::cerr << "RX: " << (int)status << std::endl;
+        std::cout << "[RX] 응답: 0xAA 0xBB 0x" << std::hex << (int)status << std::dec << " (" << (int)status << ")" << std::endl;
         return (int)status; // 상태값 반환
     }
-    std::cerr << "MoveController: 잘못된 응답 패킷" << std::endl;
+    std::cerr << "[RX] 잘못된 응답 패킷: 0x" << std::hex << (int)buffer[0] << " 0x" << (int)buffer[1] << " 0x" << (int)buffer[2] << std::dec << std::endl;
     return -1; // Error
 }
 

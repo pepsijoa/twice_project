@@ -399,11 +399,19 @@ std::string Mapper::getDirection(std::pair<int,int> start, std::pair<int,int> en
 
 int Mapper::getIndexOfFeatureByName(const std::string& name) const
 {
+    std::cout << "🔍 getIndexOfFeatureByName 호출 - 찾는 이름: '" << name << "'" << std::endl;
+    std::cout << "📋 전체 특징점 개수: " << featureLocations.size() << std::endl;
+    
     for(size_t i = 0; i < featureLocations.size(); i++) {
+        std::cout << "  [" << i << "] '" << featureLocations[i].name << "'";
         if(featureLocations[i].name == name) {
+            std::cout << " ✅ 매칭!" << std::endl;
             return static_cast<int>(i);
         }
+        std::cout << std::endl;
     }
+    
+    std::cerr << "❌ 특징점을 찾을 수 없음: '" << name << "'" << std::endl;
     return -1; 
 }
 
