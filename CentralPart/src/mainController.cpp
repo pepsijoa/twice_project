@@ -160,10 +160,12 @@ void MainController::serverThreadFunction()
             else if (receivedData.rfind("featureShot/", 0) == 0) { 
                 std::string featureName = receivedData.substr(std::string("featureShot/").length());
                 std::cout << "특징점 촬영 요청, 이름: " << featureName << std::endl;
-
-                bool checkstored = moveCtrl->processCommand("mapping_feature_arrive", lastOrientation);                
-            
-                if(checkstored == true)
+                
+                //디버깅
+                std::cout << "before feature save " << std::endl;
+                int checkstored = moveCtrl->processCommand("mapping_feature_arrive", lastOrientation);                
+                std::cout << "after feature save " << std::endl;
+                if(checkstored == 5)
                 {
                     pushMessage(2, receivedData); // 필요시 featureName만 push 가능
                     webCtrl->send_response("FEATURESHOT_OK");
@@ -273,7 +275,6 @@ void MainController::startSearchingPath() {
     if(searchingThread.joinable()) {
         return;
     }
-    
     
     searchingThread = std::thread([this]() {
         std::string targetFeature = "";  // 현재 목표로 하는 feature

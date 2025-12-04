@@ -138,7 +138,7 @@ int MoveController::processCommand(const std::string& msg, const std::string& or
 
     int status = sendCommandToArduino(command_to_arduino);
     
-    return status; // 0x02 -> Sensor 감지 0x01 -> 정상 이동 등 0x04 -> RX 에러
+    return status; // 0x02 -> Sensor 감지 0x01 -> 정상 이동  0x04 -> RX 에러 0x03 -> rotate 성공 0x05 -> feature 저장 성공
 }
 
 int MoveController::sendCommandToArduino(uint8_t cmd) {
@@ -169,7 +169,7 @@ int MoveController::sendCommandToArduino(uint8_t cmd) {
 
     if (buffer[0] == 0xAA && buffer[1] == 0xBB) {
         uint8_t status = buffer[2];
-        std::cout << "RX: " << (int)status << std::endl;
+        std::cerr << "RX: " << (int)status << std::endl;
         return (int)status; // 상태값 반환
     }
     std::cerr << "MoveController: 잘못된 응답 패킷" << std::endl;
