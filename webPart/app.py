@@ -55,7 +55,7 @@ event_listener_thread = threading.Thread(target=cpp_event_listener, daemon=True)
 event_listener_thread.start()
 
 # 안전한 소켓 통신 헬퍼 함수
-def safe_socket_communication(command, buffer_size=4096, timeout=5, max_retries=3):
+def safe_socket_communication(command, buffer_size=4096, timeout=30, max_retries=3):
     with socket_lock: 
         for attempt in range(max_retries):
             try:
@@ -101,6 +101,42 @@ def safe_socket_communication(command, buffer_size=4096, timeout=5, max_retries=
                 
             finally:
                 time.sleep(0.02)  # 20ms로 단축
+
+# --- Map cache + rate limit for /get-map ----------------------------------
+# simple in-memory cache to avoid hammering the C++ socket when clients poll
+map_cache = None
+map_cache_ts = 0.0
+map_cache_lock = threading.Lock()
+MAP_TTL_SECONDS = 3.0       # 캐시 유효 시간 (초)
+RATE_LIMIT_SECONDS = 0.8   # 동일 클라이언트의 최소 요청 간격 (초)
+last_request_times = {}     # {client_ip: last_time}
+
+def refresh_map_from_cpp():
+    """Background helper: request map from C++ and update cache if valid."""
+    global map_cache, map_cache_ts
+    try:
+        success, response = safe_socket_communication('requestMap', buffer_size=8192, timeout=15, max_retries=2)
+        if not success:
+            print(f"❌ map refresh 실패: {response}")
+            return
+
+        if not response or response == "NO_MAP":
+            print("❌ map refresh: NO_MAP or empty")
+            return
+
+        try:
+            parsed = json.loads(response)
+        except Exception as e:
+            print(f"❌ map refresh: JSON 파싱 실패: {e}")
+            return
+
+        with map_cache_lock:
+            map_cache = parsed
+            map_cache_ts = time.time()
+        print("✅ map cache updated from C++")
+
+    except Exception as e:
+        print(f"❌ refresh_map_from_cpp 예외: {e}")
 
 # C++에서 보낸 이벤트 처리
 def handle_cpp_event(event_message):
@@ -420,51 +456,64 @@ def camera_shot():
 # 맵 데이터 가져오기 라우트
 @app.route('/get-map', methods=['GET'])
 def get_map():
-    success, response = safe_socket_communication('requestMap', buffer_size=4096)
-    
-    if not success:
-        print(f"맵 데이터 요청 실패: {response}")
-        return jsonify({'status': 'error', 'message': response})
-    
-    # 응답이 유효한 JSON인지 확인
-    if response and response != "NO_MAP":
-        try:
-            map_data = json.loads(response)
-            return jsonify({'status': 'success', 'map': map_data})
-        except json.JSONDecodeError:
-            # JSON이 아닌 경우 기본 응답
-            return jsonify({'status': 'no_map', 'message': 'Map not ready'})
+    # Rate-limit by client IP to avoid excessive polling
+    client = request.remote_addr or 'local'
+    now = time.time()
+    last = last_request_times.get(client, 0.0)
+    if now - last < RATE_LIMIT_SECONDS:
+        return jsonify({'status': 'error', 'message': 'rate_limited'}), 429
+    last_request_times[client] = now
+
+    # Check cache
+    with map_cache_lock:
+        cache_copy = map_cache
+        cache_age = now - map_cache_ts if map_cache_ts > 0 else float('inf')
+
+    if cache_copy is not None and cache_age < MAP_TTL_SECONDS:
+        # If cache is getting old, refresh in background but still return cached map
+        if cache_age >= (MAP_TTL_SECONDS * 0.6):
+            threading.Thread(target=refresh_map_from_cpp, daemon=True).start()
+        return jsonify({'status': 'success', 'map': cache_copy})
+
+    # No valid cache: start background refresh and return 202 if nothing to serve
+    threading.Thread(target=refresh_map_from_cpp, daemon=True).start()
+
+    if cache_copy is not None:
+        return jsonify({'status': 'success_cached', 'map': cache_copy, 'message': 'map is stale, refresh started'})
     else:
-        return jsonify({'status': 'no_map', 'message': 'Map not available'})
+        return jsonify({'status': 'no_map', 'message': 'Map is being prepared'}), 202
 
 # Feature 목록 가져오기 API
 @app.route('/api/features', methods=['GET'])
 def get_features():
     """맵에서 feature(특징점) 목록 추출"""
     try:
-        success, response = safe_socket_communication('requestMap', buffer_size=4096)
-        
-        if not success:
-            return jsonify({'status': 'error', 'message': '맵 데이터를 가져올 수 없습니다.'})
-        
-        if response and response != "NO_MAP":
+        # Try to use cached map first
+        with map_cache_lock:
+            cache_copy = map_cache
+            cache_age = time.time() - map_cache_ts if map_cache_ts > 0 else float('inf')
+
+        if cache_copy is not None and cache_age < MAP_TTL_SECONDS:
+            # parse features from cache
+            if isinstance(cache_copy, dict) and 'features' in cache_copy:
+                feature_names = [f.get('name', f'Feature_{i+1}') for i, f in enumerate(cache_copy['features'])]
+                return jsonify({'status': 'success', 'features': feature_names})
+            else:
+                return jsonify({'status': 'no_features', 'message': '등록된 특징점이 없습니다.', 'features': []})
+
+        # No valid cache: trigger background refresh and return no_map or stale cache
+        threading.Thread(target=refresh_map_from_cpp, daemon=True).start()
+
+        if cache_copy is not None:
+            # return stale features if possible
             try:
-                map_data = json.loads(response)
-                features = []
-                
-                # features 배열이 있는 경우
-                if isinstance(map_data, dict) and 'features' in map_data:
-                    features = map_data['features']
-                    # features 배열에서 name만 추출
-                    feature_names = [f.get('name', f'Feature_{i+1}') for i, f in enumerate(features)]
-                    return jsonify({'status': 'success', 'features': feature_names})
-                else:
-                    return jsonify({'status': 'no_features', 'message': '등록된 특징점이 없습니다.', 'features': []})
-                    
-            except json.JSONDecodeError:
-                return jsonify({'status': 'error', 'message': '맵 데이터 파싱 실패'})
-        else:
-            return jsonify({'status': 'no_map', 'message': '맵이 생성되지 않았습니다.', 'features': []})
+                if isinstance(cache_copy, dict) and 'features' in cache_copy:
+                    feature_names = [f.get('name', f'Feature_{i+1}') for i, f in enumerate(cache_copy['features'])]
+                    return jsonify({'status': 'success_cached', 'features': feature_names, 'message': 'stale'})
+            except Exception:
+                pass
+
+        return jsonify({'status': 'no_map', 'message': '맵이 생성되지 않았습니다.', 'features': []})
             
     except Exception as e:
         print(f"Feature 목록 조회 오류: {e}")

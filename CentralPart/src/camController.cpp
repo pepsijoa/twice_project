@@ -32,7 +32,7 @@ bool CamController::init(int max_retries, int retry_delay_ms)
         
         if (attempt < max_retries) {
             std::cout << "[C++] 재시도 중... (" << attempt << "/" << max_retries << ")" << std::endl;
-            usleep(retry_delay_ms * 1000);
+            usleep(retry_delay_ms * 2000);
         }
     }
     

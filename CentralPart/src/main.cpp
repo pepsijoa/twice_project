@@ -32,7 +32,7 @@ int main()
     }
     
     // CamController 초기화 (5회 재시도, 500ms 간격)
-    if(!mainCtrl.initCamController(5, 500)) {
+    if(!mainCtrl.initCamController(16, 1000)) {
         std::cerr << "⚠️ Main: CamController 초기화 실패 - 카메라 기능 없이 계속 진행" << std::endl;
         // 카메라 없이도 계속 진행하도록 함
     }

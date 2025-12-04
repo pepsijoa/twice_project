@@ -418,7 +418,7 @@ void prvSensorandTX(void *pvParameters) {
 // 전역 변수 (PID 제어 변수 선언)
 double Input, Output, Setpoint;
 // Kp, Ki, Kd 값은 실험을 통해 튜닝해야 함
-double Kp = 1.0, Ki = 0.01, Kd = 0.5; 
+double Kp = 0.5, Ki = 0.01, Kd = 0.5; 
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 
 void rotate_sequence() {
@@ -506,7 +506,7 @@ void move_sequence(uint8_t target_cm) {
 
 void motor_speed(int spd)  
 {  
-  analogWrite(ENABLE_A,spd + 20);  
+  analogWrite(ENABLE_A,spd + 10);  
   analogWrite(ENABLE_B,spd);  
 }
 

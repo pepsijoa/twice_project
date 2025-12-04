@@ -78,7 +78,7 @@ public:
     
     bool initWebController(const std::string& socket_path);
     bool initMoveController(const std::string& port_name, int baud_rate);
-    bool initCamController(int max_retries = 5, int retry_delay_ms = 500);
+    bool initCamController(int max_retries = 10, int retry_delay_ms = 500);
 
     // 서버 스레드 시작
     void startWebServerThread();

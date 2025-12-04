@@ -23,8 +23,8 @@ MainController::MainController() : webCtrl(nullptr), mapper(nullptr), camCtrl(nu
     // Mapper 초기화
     mapper = std::make_unique<Mapper>();
     
-    // CamController 초기화
-    // camCtrl = std::make_unique<CamController>();
+    //CamController 초기화
+    camCtrl = std::make_unique<CamController>();
 }
 
 //소멸자
@@ -161,29 +161,18 @@ void MainController::serverThreadFunction()
                 std::string featureName = receivedData.substr(std::string("featureShot/").length());
                 std::cout << "특징점 촬영 요청, 이름: " << featureName << std::endl;
 
-                //bool checkstored = moveCtrl->processCommand("mapping_feature_arrive", lastOrientation);
-                
-                bool camSuccess = false;
-                bool checkstored = true;
-                
+                bool checkstored = moveCtrl->processCommand("mapping_feature_arrive", lastOrientation);                
             
                 if(checkstored == true)
                 {
-                    if(camSuccess)
-                    {
-                        pushMessage(2, receivedData); // 필요시 featureName만 push 가능
-                    }
-                    else{
-                        webCtrl->send_response("FEATURESHOT_FAIL");
-                        continue;
-                    }
+                    pushMessage(2, receivedData); // 필요시 featureName만 push 가능
+                    webCtrl->send_response("FEATURESHOT_OK");
+                    continue;
                 }
                 else{
                     webCtrl->send_response("FEATURESHOT_FAIL");
                     continue;
                 }
-                webCtrl->send_response("FEATURESHOT_OK");
-                continue;
             }
             else if(receivedData == "remapping")
             {
@@ -228,11 +217,7 @@ void MainController::serverThreadFunction()
                     pre = path[i];
                     stepCount++;
                     
-                    
-                    // moveSuccess = moveCtrl->processCommand(direction);
-
-
-                    bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
+                    bool moveSuccess = moveCtrl->processCommand(direction);
                     lastOrientation = direction;
                     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
@@ -251,7 +236,7 @@ void MainController::serverThreadFunction()
                     }
                 }
                 // moveCtrl한테 도착 했으니 각도 알려주고 camera 돌리기
-                // bool orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", lastOrientation, mapper->getIndexOfFeatureByName(featureName));
+                 bool orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", lastOrientation, mapper->getIndexOfFeatureByName(featureName));
                 
                 
 
@@ -332,18 +317,22 @@ void MainController::startSearchingPath() {
                 if(feature.position == currentPos) {
                     
                     //특징점 위치 도착 및 해당 지점에서 방향 확인하기.
-                    // bool orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", "", mapper->getIndexOfFeatureByName(feature.name));
-                    // if(!orientSuccess){
-                    //     std::cout << "특징점 도착, 방향 전환 실패.." << stdd::endl;
-                    //     continue;
-                    // }
+                    // 1. 특징점 도착 맞는지 디버그.
+                    bool orientSuccess = moveCtrl->processCommand("mapped_feature_arrive", "", mapper->getIndexOfFeatureByName(feature.name));
+                    // 2. 함수에서 제대로 처리하는 지 
                     
-                    // 특징점 위치 도착 및 재고 업데이트 진행.
-                    // std::vector<std::pair<int,int>> inventoryUpdates = camCtrl->updateInventory();
+                    if(!orientSuccess){
+                        std::cout << "특징점 도착, 방향 전환 실패.." << std::endl;
+                        continue;
+                    }
                     
-                    // for(const auto& inventoryUpdate : inventoryUpdates) {
-                    //     int inventoryID = inventoryUpdate.first;
-                    //     int boxCount = inventoryUpdate.second;
+                    // 특징점에서 제데로 사진 찍는지.
+                    std::vector<std::pair<int,int>> inventoryUpdates = camCtrl->updateInventory();
+                    
+
+                    for(const auto& inventoryUpdate : inventoryUpdates) {
+                        int inventoryID = inventoryUpdate.first;
+                        int boxCount = inventoryUpdate.second;
                         
                         std::cout << "🎯 특징점 도착: " << feature.name
                                 << " | 재고ID: " << inventoryID 
@@ -424,8 +413,8 @@ void MainController::startSearchingPath() {
                 
                 
                 // 실제 moveController 호출 (주석 해제 필요)
-                //bool moveSuccess = moveCtrl->processCommand(direction);
-                bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
+                bool moveSuccess = moveCtrl->processCommand(direction);
+                //bool moveSuccess = true; //임시로 항상 이동 성공이라고 가정
                 lastOrientation = direction;
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(2000));

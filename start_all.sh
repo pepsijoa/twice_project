@@ -61,7 +61,6 @@ echo "🛑 기존 프로세스 종료 중..."
 pkill -f "python.*app.py" 2>/dev/null || true 
 pkill -f "twiceproject" 2>/dev/null || true
 pkill -f "cam.py" 2>/dev/null || true
-sleep 2
 
 # 기존 소켓 파일 삭제
 echo "📁 기존 소켓 파일 정리..."
@@ -73,7 +72,7 @@ echo "📷 카메라 서버 시작 중..."
 python3 "$SCRIPT_DIR/camPart/cam.py" &
 CAM_PID=$!
 echo "📋 카메라 서버 PID: $CAM_PID"
-sleep 2
+sleep 5
 
 # 카메라 서버 상태 확인
 if ! kill -0 $CAM_PID 2>/dev/null; then
